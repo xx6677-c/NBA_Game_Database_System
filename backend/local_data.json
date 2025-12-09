@@ -1,0 +1,107 @@
+{
+  "users": [
+    {
+      "user_id": 1,
+      "username": "admin",
+      "password": "$2b$12$LQv3c1yqBWVHrnG0q9QY0e",
+      "role": "admin",
+      "register_time": "2024-01-01 10:00:00",
+      "last_login": "2024-11-04 15:30:00",
+      "email": "admin@example.com",
+      "phone": "13800138000"
+    },
+    {
+      "user_id": 2,
+      "username": "user1",
+      "password": "$2b$12$LQv3c1yqBWVHrnG0q9QY0e",
+      "role": "user",
+      "register_time": "2024-02-01 14:20:00",
+      "last_login": "2024-11-04 16:45:00",
+      "email": "user1@example.com",
+      "phone": "13900139000"
+    }
+  ],
+  "teams": [
+    {
+      "team_id": 1,
+      "name": "洛杉矶湖人",
+      "city": "洛杉矶",
+      "arena": "Crypto.com球馆",
+      "conference": "西部",
+      "founded_year": 1947
+    },
+    {
+      "team_id": 2,
+      "name": "金州勇士",
+      "city": "旧金山",
+      "arena": "大通中心",
+      "conference": "西部",
+      "founded_year": 1946
+    }
+  ],
+  "players": [
+    {
+      "player_id": 1,
+      "name": "勒布朗·詹姆斯",
+      "position": "小前锋",
+      "jersey_number": 23,
+      "height": "203cm",
+      "weight": "113kg",
+      "birth_date": "1984-12-30",
+      "nationality": "美国",
+      "team_name": "洛杉矶湖人"
+    },
+    {
+      "player_id": 2,
+      "name": "斯蒂芬·库里",
+      "position": "控球后卫",
+      "jersey_number": 30,
+      "height": "188cm",
+      "weight": "84kg",
+      "birth_date": "1988-03-14",
+      "nationality": "美国",
+      "team_name": "金州勇士"
+    }
+  ],
+  "games": [
+    {
+      "game_id": 1,
+      "season": "2023-2024",
+      "date": "2024-01-15 19:30:00",
+      "status": "finished",
+      "home_score": 108,
+      "away_score": 105,
+      "home_team": "洛杉矶湖人",
+      "away_team": "金州勇士",
+      "winner_team": "洛杉矶湖人",
+      "venue": "Crypto.com球馆"
+    }
+  ],
+  "posts": [
+    {
+      "post_id": 1,
+      "user_id": 1,
+      "title": "湖人vs勇士精彩比赛回顾",
+      "content": "这场比赛真是太精彩了！詹姆斯的关键三分决定了比赛胜负。",
+      "create_time": "2024-01-16 10:00:00",
+      "views": 150,
+      "likes": 25,
+      "season": "2023-2024",
+      "home_team": "洛杉矶湖人",
+      "away_team": "金州勇士"
+    }
+  ],
+  "ratings": [
+    {
+      "rating_id": 1,
+      "user_id": 1,
+      "player_id": 1,
+      "rating": 9.5,
+      "comment": "詹姆斯的表现一如既往的稳定",
+      "create_time": "2024-01-16 11:00:00",
+      "player_name": "勒布朗·詹姆斯",
+      "position": "小前锋",
+      "team_name": "洛杉矶湖人"
+    }
+  ]
+}

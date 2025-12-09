@@ -1,0 +1,358 @@
+/* Global Design System - NBA Premium Gold Theme */
+:root {
+  color-scheme: dark;
+  /* Palette - Premium Dark */
+  --color-bg: #0a0e17; /* Deep Navy/Black */
+  --color-surface: rgba(30, 30, 45, 0.6); /* Semi-transparent Dark Glass - Slightly Lighter */
+  --color-surface-solid: #14141e;
+  --color-text-primary: #ffffff; /* White Text */
+  --color-text-secondary: #e0e0e0; /* Light Gray/Off-White Text for better visibility */
+  
+  /* NBA Premium Colors */
+  --color-accent: #d4af37; /* Premium Gold */
+  --color-accent-hover: #f0c040;
+  --color-secondary: #17408B; /* NBA Blue */
+  --color-orange: #FA8320; /* Basketball Orange */
+  
+  --color-border: rgba(212, 175, 55, 0.3); /* Subtle Gold Border */
+  
+  /* Aliases for component compatibility */
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --primary-color: var(--color-accent);
+  --accent-color: var(--color-accent); /* Use Gold as primary accent */
+  
+  /* Re-mapping "Glass" variables to Premium Dark Theme */
+  --glass-border: var(--color-border);
+  --glass-bg: var(--color-surface);
+  --glass-shadow-hover: 0 0 20px rgba(212, 175, 55, 0.15);
+  
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 12px;
+  --spacing-md: 20px;
+  --spacing-lg: 32px;
+  --spacing-xl: 48px;
+  
+  /* Typography */
+  --font-family: "Roboto", "Helvetica Neue", Arial, sans-serif;
+  
+  /* Effects */
+  --shadow-sm: 0 4px 6px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 8px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.5);
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --blur-md: blur(12px);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  line-height: 1.6;
+  font-size: 16px;
+}
+
+/* Utility Classes */
+.container {
+  max-width: 1400px; /* Wider container for cinematic feel */
+  margin: 0 auto;
+  padding: 0 var(--spacing-md);
+}
+
+/* NBA Card (Premium Glass) */
+.glass-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-top: 1px solid rgba(212, 175, 55, 0.5); /* Brighter top border */
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
+  transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+  box-shadow: var(--glass-shadow-hover);
+  transform: translateY(-2px);
+  border-color: var(--color-accent);
+  background: rgba(30, 30, 40, 0.7);
+}
+
+/* Typography Overrides */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-family);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+
+
+p {
+  color: var(--color-text-secondary);
+}
+
+/* Button Reset & Base */
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* Scrollbar - Premium Dark Theme */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0e17;
+}
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+  border: 1px solid #0a0e17;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent);
+}
+
+/* Legacy Support (Refined) */
+.card {
+  background: var(--color-surface-solid);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
+}
+
+.btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-accent) 0%, #b8860b 100%);
+  color: #000; /* Black text on gold for contrast */
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #f0c040 0%, #d4af37 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(212, 175, 55, 0.5);
+}
+
+.form-control {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-primary);
+  transition: all 0.2s;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Fix for select options in dark mode */
+select option {
+  background-color: #14141e;
+  color: #ffffff;
+}
+
+/* Ensure glass-select also has these properties for options */
+.glass-select option {
+  background-color: #14141e;
+  color: #ffffff;
+}
+
+/* "Glass" Components -> NBA Premium Components */
+.glass-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.8rem 1.6rem;
+  border-radius: 8px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(4px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.glass-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--color-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
+  color: var(--color-accent);
+}
+
+.glass-btn.primary-btn {
+  background: linear-gradient(135deg, var(--color-accent) 0%, #b8860b 100%);
+  color: #000;
+  border: none;
+}
+
+.glass-btn.primary-btn:hover {
+  background: linear-gradient(135deg, #f0c040 0%, #d4af37 100%);
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.4);
+  color: #000;
+}
+
+.glass-btn.secondary-btn {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--color-text-secondary);
+}
+
+.glass-btn.danger {
+  background: rgba(220, 38, 38, 0.1);
+  color: #ff4d4d;
+  border-color: rgba(220, 38, 38, 0.3);
+}
+
+.glass-btn.danger:hover {
+  background: rgba(220, 38, 38, 0.2);
+  border-color: #ff4d4d;
+  box-shadow: 0 0 10px rgba(220, 38, 38, 0.2);
+}
+
+.glass-btn.sm-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+
+.glass-input {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 1rem 1.2rem;
+  border-radius: 8px;
+  color: var(--color-text-primary);
+  transition: all 0.3s ease;
+  width: 100%;
+  font-family: inherit;
+  font-size: 1.1rem;
+}
+
+.glass-input:focus {
+  outline: none;
+  background: rgba(0, 0, 0, 0.4);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.2);
+}
+
+.glass-card.inner-card {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: none;
+}
+
+.glass-card.inner-card:hover {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: var(--color-accent);
+}
+
+/* Custom Scrollbar for containers */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent);
+}
+
+/* Animation */
+.is-loading {
+  animation: rotate 1.5s linear infinite;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* NBA Specific Elements */
+.page-header h1 {
+  font-size: 3rem;
+  font-style: italic;
+  color: var(--color-text-primary);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  border-bottom: none; /* Remove solid border */
+  display: inline-block;
+  padding-bottom: 10px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  background: linear-gradient(to right, #d4af37, #f0c040);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.subtitle {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Table Styles Override for Premium Dark Theme */
+.glass-table th {
+  background: rgba(20, 20, 30, 0.8) !important;
+  color: var(--color-accent) !important;
+  border-bottom: 1px solid var(--color-accent) !important;
+  text-transform: uppercase;
+  font-weight: 700;
+  backdrop-filter: blur(4px);
+}
+
+.glass-table td {
+  color: var(--color-text-primary) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.glass-table tr:hover td {
+  background: rgba(212, 175, 55, 0.1) !important;
+  color: white !important;
+}
+
