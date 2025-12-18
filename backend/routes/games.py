@@ -190,7 +190,7 @@ def get_game_ratings(game_id):
                 JOIN Player p ON pg.player_id = p.player_id
                 JOIN Team t ON p.当前球队ID = t.team_id
                 LEFT JOIN Rating r ON p.player_id = r.player_id AND r.game_id = pg.game_id
-                LEFT JOIN Player_Image pi ON p.player_id = pi.player_id AND pi.是否主图 = TRUE
+                LEFT JOIN Player_Image pi ON p.player_id = pi.player_id
                 WHERE pg.game_id = %s
                 GROUP BY p.player_id
                 ORDER BY t.team_id, p.球衣号

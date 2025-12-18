@@ -157,13 +157,10 @@ CREATE TABLE IF NOT EXISTS Post_Image (
 
 -- 14. 球员-图片关系表
 CREATE TABLE IF NOT EXISTS Player_Image (
-    player_id INT NOT NULL,
-    image_id INT NOT NULL,
-    类型 ENUM('头像', '生活照', '比赛照') NOT NULL,
-    是否主图 BOOLEAN DEFAULT FALSE,
-    PRIMARY KEY (image_id),
-    FOREIGN KEY (player_id) REFERENCES Player(player_id),
-    FOREIGN KEY (image_id) REFERENCES Image(image_id)
+    player_id INT PRIMARY KEY,
+    image_id INT NOT NULL UNIQUE,
+    FOREIGN KEY (player_id) REFERENCES Player(player_id) ON DELETE CASCADE,
+    FOREIGN KEY (image_id) REFERENCES Image(image_id) ON DELETE CASCADE
 );
 
 -- 15. 球队-队标关系表

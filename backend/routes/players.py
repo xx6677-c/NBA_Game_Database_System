@@ -28,7 +28,7 @@ def get_players():
                            p.合同到期, p.薪资, pi.image_id
                     FROM Player p 
                     LEFT JOIN Team t ON p.当前球队ID = t.team_id
-                    LEFT JOIN Player_Image pi ON p.player_id = pi.player_id AND pi.是否主图 = TRUE
+                    LEFT JOIN Player_Image pi ON p.player_id = pi.player_id
                     WHERE p.当前球队ID = %s
                     ORDER BY p.球衣号
                 """, (team_id,))
@@ -39,7 +39,7 @@ def get_players():
                            p.合同到期, p.薪资, pi.image_id
                     FROM Player p 
                     LEFT JOIN Team t ON p.当前球队ID = t.team_id
-                    LEFT JOIN Player_Image pi ON p.player_id = pi.player_id AND pi.是否主图 = TRUE
+                    LEFT JOIN Player_Image pi ON p.player_id = pi.player_id
                     ORDER BY t.名称, p.球衣号
                 """)
             
@@ -267,12 +267,11 @@ def upload_player_photo(player_id):
             image_id = cursor.lastrowid
             
             # 2. Insert/Update Player_Image table
-            # First check if there is already a main image
-            cursor.execute("UPDATE Player_Image SET 是否主图 = FALSE WHERE player_id = %s", (player_id,))
-            
+            # Use ON DUPLICATE KEY UPDATE to handle existing record
             cursor.execute("""
-                INSERT INTO Player_Image (player_id, image_id, 类型, 是否主图)
-                VALUES (%s, %s, '头像', TRUE)
+                INSERT INTO Player_Image (player_id, image_id)
+                VALUES (%s, %s)
+                ON DUPLICATE KEY UPDATE image_id = VALUES(image_id)
             """, (player_id, image_id))
             
             conn.commit()
