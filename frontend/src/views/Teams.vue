@@ -13,6 +13,17 @@
     <div class="teams-grid">
       <div v-for="team in teams" :key="team.team_id" class="glass-card team-card">
         <div class="card-header">
+          <div class="team-logo-wrapper">
+            <img 
+              v-if="team.logo_url" 
+              :src="getLogoUrl(team.logo_url)" 
+              class="team-logo" 
+              alt="Team Logo"
+            >
+            <div v-else class="team-logo-placeholder">
+              <el-icon><Basketball /></el-icon>
+            </div>
+          </div>
           <div class="team-title">
             <h3>{{ team.name }}</h3>
             <span class="conference-badge" :class="team.conference === '东部' ? 'east' : 'west'">
@@ -112,6 +123,16 @@
               <input v-model="teamForm.founded_year" type="number" min="1900" :max="new Date().getFullYear()" required class="glass-input">
             </div>
           </div>
+          
+          <div class="form-group" v-if="showEditTeam">
+            <label>球队Logo</label>
+            <div class="input-wrapper">
+              <el-icon><Picture /></el-icon>
+              <input type="file" @change="handleFileChange" accept="image/*" class="glass-input file-input">
+            </div>
+            <p class="help-text" v-if="selectedFile">已选择: {{ selectedFile.name }}</p>
+          </div>
+
           <div class="form-actions">
             <button type="button" @click="closeModal" class="glass-btn">取消</button>
             <button type="submit" :disabled="teamLoading" class="glass-btn primary-btn">
@@ -128,14 +149,14 @@
 import api from '../services/api'
 import { 
   Plus, Edit, Delete, User, Trophy, Location, 
-  House, Calendar, Loading, Basketball, Close, Guide 
+  House, Calendar, Loading, Basketball, Close, Guide, Picture
 } from '@element-plus/icons-vue'
 
 export default {
   name: 'Teams',
   components: {
     Plus, Edit, Delete, User, Trophy, Location, 
-    House, Calendar, Loading, Basketball, Close, Guide
+    House, Calendar, Loading, Basketball, Close, Guide, Picture
   },
   data() {
     return {
@@ -144,6 +165,7 @@ export default {
       teamLoading: false,
       showCreateTeam: false,
       showEditTeam: false,
+      selectedFile: null,
       teamForm: {
         team_id: null,
         name: '',
@@ -225,6 +247,12 @@ export default {
       this.teamLoading = true
       try {
         await api.updateTeam(this.teamForm.team_id, this.teamForm)
+        
+        // 如果选择了文件，上传Logo
+        if (this.selectedFile) {
+          await api.uploadTeamLogo(this.teamForm.team_id, this.selectedFile)
+        }
+        
         this.closeModal()
         await this.loadTeams()
       } catch (error) {
@@ -235,9 +263,22 @@ export default {
       }
     },
     
+    handleFileChange(event) {
+      const file = event.target.files[0]
+      if (file) {
+        this.selectedFile = file
+      }
+    },
+
+    getLogoUrl(url) {
+      if (!url) return ''
+      return url
+    },
+
     closeModal() {
       this.showCreateTeam = false
       this.showEditTeam = false
+      this.selectedFile = null
       this.teamForm = {
         team_id: null,
         name: '',
@@ -510,6 +551,47 @@ export default {
   font-size: 1rem;
   color: var(--text-primary);
   transition: all 0.3s ease;
+}
+
+.file-input {
+  padding-left: 36px;
+  padding-top: 8px;
+}
+
+.help-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  margin-left: 4px;
+}
+
+.team-logo-wrapper {
+  width: 50px;
+  height: 50px;
+  margin-right: 16px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.team-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.team-logo-placeholder {
+  font-size: 24px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 
 .glass-input:focus, .glass-select:focus {

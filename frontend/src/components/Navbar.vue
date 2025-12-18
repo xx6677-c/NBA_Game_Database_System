@@ -27,6 +27,11 @@
           <span>比赛</span>
         </router-link>
         
+        <router-link to="/rankings" class="nav-link">
+          <el-icon><TrendCharts /></el-icon>
+          <span>榜单</span>
+        </router-link>
+
         <router-link to="/posts" class="nav-link">
           <el-icon><ChatDotRound /></el-icon>
           <span>社区</span>

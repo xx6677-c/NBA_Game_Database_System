@@ -27,11 +27,15 @@ def get_games():
             query = """
                 SELECT g.game_id, g.赛季, g.日期, g.状态, g.主队得分, g.客队得分,
                        ht.名称 as home_team, at.名称 as away_team,
-                       wt.名称 as winner_team, g.场馆
+                       wt.名称 as winner_team, g.场馆,
+                       htl.image_id as home_logo_id, atl.image_id as away_logo_id,
+                       g.主队ID, g.客队ID
                 FROM Game g
                 JOIN Team ht ON g.主队ID = ht.team_id
                 JOIN Team at ON g.客队ID = at.team_id
                 LEFT JOIN Team wt ON g.获胜球队ID = wt.team_id
+                LEFT JOIN Team_Logo htl ON ht.team_id = htl.team_id
+                LEFT JOIN Team_Logo atl ON at.team_id = atl.team_id
             """
             
             params = []
@@ -66,7 +70,11 @@ def get_games():
                     'home_team': row[6],
                     'away_team': row[7],
                     'winner_team': row[8],
-                    'venue': row[9]
+                    'venue': row[9],
+                    'home_logo_url': f'/api/images/{row[10]}' if row[10] else None,
+                    'away_logo_url': f'/api/images/{row[11]}' if row[11] else None,
+                    'home_team_id': row[12],
+                    'away_team_id': row[13]
                 })
             
             return jsonify(games), 200
@@ -176,11 +184,13 @@ def get_game_ratings(game_id):
             # 获取所有参与比赛的球员及其平均评分
             query = """
                 SELECT p.player_id, p.姓名, p.当前球队ID, t.名称 as team_name,
-                       AVG(r.分数) as avg_rating, COUNT(r.user_id) as rating_count
+                       AVG(r.分数) as avg_rating, COUNT(r.user_id) as rating_count,
+                       pi.image_id
                 FROM Player_Game pg
                 JOIN Player p ON pg.player_id = p.player_id
                 JOIN Team t ON p.当前球队ID = t.team_id
                 LEFT JOIN Rating r ON p.player_id = r.player_id AND r.game_id = pg.game_id
+                LEFT JOIN Player_Image pi ON p.player_id = pi.player_id AND pi.是否主图 = TRUE
                 WHERE pg.game_id = %s
                 GROUP BY p.player_id
                 ORDER BY t.team_id, p.球衣号
@@ -196,6 +206,7 @@ def get_game_ratings(game_id):
                     'team_name': row[3],
                     'avg_rating': float(row[4]) if row[4] else 0,
                     'rating_count': row[5],
+                    'photo_url': f'/api/images/{row[6]}' if row[6] else None,
                     'user_rating': None
                 }
                 

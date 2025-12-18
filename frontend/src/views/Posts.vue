@@ -40,6 +40,15 @@
             <textarea v-model="newPost.content" rows="6" required class="glass-input glass-textarea" placeholder="请输入内容..."></textarea>
           </div>
           <div class="form-group">
+            <label>图片（可选，支持多选）</label>
+            <div class="input-wrapper">
+              <el-icon><Picture /></el-icon>
+              <input type="file" @change="handleImageUpload" accept="image/*" multiple class="glass-input">
+            </div>
+            <div v-if="uploadingImage" class="upload-status">图片上传中...</div>
+            <div v-if="newPost.image_ids.length > 0" class="upload-success">已上传 {{ newPost.image_ids.length }} 张图片</div>
+          </div>
+          <div class="form-group">
             <label>关联比赛（可选）</label>
             <div class="input-wrapper">
               <el-icon><Trophy /></el-icon>
@@ -64,7 +73,12 @@
     <div class="posts-list">
       <div v-for="post in posts" :key="post.post_id" class="glass-card post-card">
         <div class="post-header">
-          <h3>{{ post.title }}</h3>
+          <div class="title-row">
+            <h3>{{ post.title }}</h3>
+            <button v-if="canDeletePost(post)" @click.stop="deletePost(post)" class="delete-post-btn" title="删除帖子">
+              <el-icon><Delete /></el-icon>
+            </button>
+          </div>
           <div class="post-meta">
             <span class="meta-item">
               <el-icon><User /></el-icon> {{ post.username }}
@@ -76,7 +90,16 @@
         </div>
         
         <div class="post-content">
-          <p>{{ post.content }}</p>
+          <!-- Content hidden in list view -->
+          <!-- <p>{{ post.content }}</p> -->
+          
+          <!-- Show only 1st image in list view -->
+          <div v-if="post.images && post.images.length > 0" class="post-image-container">
+             <img :src="post.images[0]" alt="Post Image" class="post-image">
+          </div>
+          <div v-else-if="post.image_url" class="post-image-container">
+            <img :src="post.image_url" alt="Post Image" class="post-image">
+          </div>
         </div>
         
         <div v-if="post.season" class="post-game-info glass-card inner-card">
@@ -90,71 +113,108 @@
         </div>
         
         <div class="post-actions">
-          <button @click="togglePostLike(post)" :class="['glass-btn sm-btn', { 'active': isPostLiked(post) }]">
-            <el-icon><StarFilled v-if="isPostLiked(post)" /><Star v-else /></el-icon> 
+          <button 
+            @click="likePost(post)" 
+            class="glass-btn sm-btn"
+            :class="{ 'active': isPostLiked(post) }"
+          >
+            <el-icon v-if="isPostLiked(post)"><StarFilled /></el-icon>
+            <el-icon v-else><Star /></el-icon>
             {{ isPostLiked(post) ? '已点赞' : '点赞' }}
           </button>
-          <button @click="toggleComments(post)" class="glass-btn sm-btn">
-            <el-icon><ChatDotRound /></el-icon> 
-            评论{{ post.comments && post.comments.length > 0 ? `(${post.comments.length})` : '' }}
-          </button>
-          <button @click="sharePost(post)" class="glass-btn sm-btn">
-            <el-icon><Share /></el-icon> 分享
+          <button @click="openPostDetail(post)" class="glass-btn sm-btn primary-btn">
+            <el-icon><ChatDotRound /></el-icon> 详情 / 评论
           </button>
         </div>
         
-        <!-- Comments Section -->
-        <div v-if="post.showComments" class="comments-section">
-          <div class="comments-list">
-            <div v-if="post.comments && post.comments.length > 0">
-              <div v-for="comment in post.comments" :key="comment.comment_id" class="comment-item glass-card inner-card">
-                <div class="comment-header">
-                  <div class="comment-user">
-                    <el-icon><User /></el-icon> <strong>{{ comment.username }}</strong>
-                  </div>
-                  <span class="comment-time">{{ comment.create_time }}</span>
-                </div>
-                <div class="comment-content">{{ comment.content }}</div>
-                <div class="comment-actions">
-                  <button 
-                    @click="toggleCommentLike(comment)" 
-                    :class="['glass-btn icon-only xs-btn', { 'active': isCommentLiked(comment) }]"
-                  >
-                    <el-icon><StarFilled v-if="isCommentLiked(comment)" /><Star v-else /></el-icon> 
-                    {{ comment.like_count || 0 }}
-                  </button>
-                  <button 
-                    v-if="canDeleteComment()" 
-                    @click="deleteComment(post, comment)" 
-                    class="glass-btn icon-only xs-btn danger"
-                  >
-                    <el-icon><Delete /></el-icon>
-                  </button>
-                </div>
+        <!-- Comments Section (Removed from list view) -->
+        <!-- <div v-if="post.showComments" class="comments-section">
+          ...
+        </div> -->
+      </div>
+    </div>
+
+    <!-- Post Detail Modal -->
+    <div v-if="showPostDetailModal && selectedPost" class="modal-overlay glass-overlay" @click="closePostDetail">
+      <div class="glass-card modal-content post-detail-modal" @click.stop>
+        <div class="modal-header">
+          <h3>{{ selectedPost.title }}</h3>
+          <button @click="closePostDetail" class="close-btn"><el-icon><Close /></el-icon></button>
+        </div>
+        
+        <div class="modal-body custom-scrollbar">
+          <div class="post-header-detail">
+             <div class="post-meta">
+                <span class="meta-item"><el-icon><User /></el-icon> {{ selectedPost.username }}</span>
+                <span class="meta-item"><el-icon><Timer /></el-icon> {{ selectedPost.create_time }}</span>
+             </div>
+          </div>
+
+          <div class="post-content full-content">
+            <p>{{ selectedPost.content }}</p>
+            
+            <!-- All Images -->
+            <div v-if="selectedPost.images && selectedPost.images.length > 0" class="post-images-list-full">
+              <div v-for="(img, index) in selectedPost.images" :key="index" class="post-image-full-item">
+                <img :src="img" alt="Post Image" class="post-image-full">
               </div>
             </div>
-            <div v-else class="no-comments">
-              <el-icon><ChatDotRound /></el-icon>
-              <p>暂无评论，快来发表第一条评论吧！</p>
+            <div v-else-if="selectedPost.image_url" class="post-image-container-full">
+               <img :src="selectedPost.image_url" alt="Post Image" class="post-image-full">
             </div>
           </div>
-          
-          <!-- Add Comment -->
-          <div class="add-comment glass-card inner-card">
-            <div class="comment-form">
-              <textarea 
-                v-model="post.newComment" 
-                placeholder="写下你的评论..." 
-                rows="3"
-                class="glass-input glass-textarea"
-              ></textarea>
-              <button 
-                @click="submitComment(post)" 
-                :disabled="!post.newComment || post.submittingComment"
-                class="glass-btn primary-btn sm-btn submit-comment-btn"
-              >
-                {{ post.submittingComment ? '发布中...' : '发布评论' }}
-              </button>
+
+          <div class="post-stats">
+             <span class="stat-item"><el-icon><View /></el-icon> {{ selectedPost.view_count || 0 }} 浏览</span>
+             <span class="stat-item"><el-icon><Star /></el-icon> {{ selectedPost.like_count || 0 }} 点赞</span>
+          </div>
+
+          <div class="post-actions">
+             <button @click="likePost(selectedPost)" class="glass-btn sm-btn" :class="{ 'active': isPostLiked(selectedPost) }">
+                <el-icon v-if="isPostLiked(selectedPost)"><StarFilled /></el-icon>
+                <el-icon v-else><Star /></el-icon>
+                {{ isPostLiked(selectedPost) ? '已点赞' : '点赞' }}
+             </button>
+          </div>
+
+          <!-- Comments Section -->
+          <div class="comments-section">
+            <h4>评论 ({{ selectedPost.comments ? selectedPost.comments.length : (selectedPost.comment_count || 0) }})</h4>
+            
+            <div class="comments-list">
+              <div v-if="selectedPost.comments && selectedPost.comments.length > 0">
+                <div v-for="comment in selectedPost.comments" :key="comment.comment_id" class="comment-item glass-card inner-card">
+                  <div class="comment-header">
+                    <div class="comment-user">
+                      <el-icon><User /></el-icon> <strong>{{ comment.username }}</strong>
+                    </div>
+                    <span class="comment-time">{{ comment.create_time }}</span>
+                  </div>
+                  <div class="comment-content">{{ comment.content }}</div>
+                  <div class="comment-actions">
+                    <button @click="toggleCommentLike(comment)" :class="['glass-btn icon-only xs-btn', { 'active': isCommentLiked(comment) }]">
+                      <el-icon><StarFilled v-if="isCommentLiked(comment)" /><Star v-else /></el-icon> {{ comment.like_count || 0 }}
+                    </button>
+                    <button v-if="canDeleteComment()" @click="deleteComment(selectedPost, comment)" class="glass-btn icon-only xs-btn danger">
+                      <el-icon><Delete /></el-icon>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="no-comments">
+                <el-icon><ChatDotRound /></el-icon>
+                <p>暂无评论，快来发表第一条评论吧！</p>
+              </div>
+            </div>
+            
+            <!-- Add Comment -->
+            <div class="add-comment glass-card inner-card">
+              <div class="comment-form">
+                <textarea v-model="selectedPost.newComment" placeholder="写下你的评论..." rows="3" class="glass-input glass-textarea"></textarea>
+                <button @click="submitComment(selectedPost)" :disabled="!selectedPost.newComment || selectedPost.submittingComment" class="glass-btn primary-btn sm-btn submit-comment-btn">
+                  {{ selectedPost.submittingComment ? '发布中...' : '发布评论' }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -176,14 +236,14 @@
 <script>
 import api from '../services/api'
 import { 
-  EditPen, ChatDotRound, View, Star, StarFilled, Share, User, Timer, 
+  EditPen, ChatDotRound, View, Star, StarFilled, User, Timer, 
   Trophy, Close, Delete, Loading 
 } from '@element-plus/icons-vue'
 
 export default {
   name: 'Posts',
   components: {
-    EditPen, ChatDotRound, View, Star, StarFilled, Share, User, Timer, 
+    EditPen, ChatDotRound, View, Star, StarFilled, User, Timer, 
     Trophy, Close, Delete, Loading
   },
   data() {
@@ -195,13 +255,17 @@ export default {
       newPost: {
         title: '',
         content: '',
-        game_id: ''
+        game_id: '',
+        image_ids: []
       },
       creatingPost: false,
+      uploadingImage: false,
       loading: false,
       currentUser: null,
       postLikeStatus: {}, // 存储每个帖子的点赞状态
-      commentLikeStatus: {} // 存储每个评论的点赞状态
+      commentLikeStatus: {}, // 存储每个评论的点赞状态
+      showPostDetailModal: false,
+      selectedPost: null
     }
   },
   async mounted() {
@@ -211,6 +275,15 @@ export default {
       this.selectedGame = parseInt(gameId)
     }
     await Promise.all([this.loadRecentGames(), this.loadPosts(), this.loadCurrentUser()])
+
+    // Check for post ID in query to open detail modal
+    const postId = this.$route.query.id
+    if (postId) {
+      const post = this.posts.find(p => p.post_id == postId)
+      if (post) {
+        this.openPostDetail(post)
+      }
+    }
   },
   methods: {
     async loadRecentGames() {
@@ -249,12 +322,13 @@ export default {
         const postData = {
           title: this.newPost.title,
           content: this.newPost.content,
-          game_id: this.newPost.game_id ? this.newPost.game_id : null
+          game_id: this.newPost.game_id ? this.newPost.game_id : null,
+          image_ids: this.newPost.image_ids
         }
         
         await api.createPost(postData)
         this.showCreatePost = false
-        this.newPost = { title: '', content: '', game_id: '' }
+        this.newPost = { title: '', content: '', game_id: '', image_ids: [] }
         await this.loadPosts()
         // alert('帖子发布成功')
       } catch (error) {
@@ -263,6 +337,28 @@ export default {
         this.creatingPost = false
       }
     },
+
+    async handleImageUpload(event) {
+      const files = event.target.files
+      if (!files || files.length === 0) return
+      
+      this.uploadingImage = true
+      try {
+        // 支持多图上传
+        for (let i = 0; i < files.length; i++) {
+          const result = await api.uploadImage(files[i])
+          this.newPost.image_ids.push(result.image_id)
+        }
+      } catch (error) {
+        console.error('图片上传失败:', error)
+        alert('图片上传失败: ' + error.message)
+      } finally {
+        this.uploadingImage = false
+        // 清空input，允许重复选择同一文件
+        event.target.value = ''
+      }
+    },
+
     async loadCurrentUser() {
       try {
         this.currentUser = await api.getCurrentUser()
@@ -408,11 +504,41 @@ export default {
     likePost(post) {
       this.togglePostLike(post)
     },
-    commentPost(post) {
-      this.toggleComments(post)
+    // commentPost(post) {
+    //   this.toggleComments(post)
+    // },
+    async deletePost(post) {
+      if (!confirm('确定要删除这个帖子吗？此操作不可恢复。')) {
+        return
+      }
+      
+      try {
+        await api.deletePost(post.post_id)
+        // 从列表中移除
+        const index = this.posts.findIndex(p => p.post_id === post.post_id)
+        if (index > -1) {
+          this.posts.splice(index, 1)
+        }
+        // alert('帖子删除成功')
+      } catch (error) {
+        alert(error.message || '删除失败')
+      }
     },
-    sharePost(post) {
-      alert(`分享帖子 "${post.title}" 功能开发中...`)
+    canDeletePost(post) {
+      if (!this.currentUser) return false
+      return this.currentUser.role === 'admin' || this.currentUser.user_id === post.user_id
+    },
+    openPostDetail(post) {
+      this.selectedPost = post
+      this.showPostDetailModal = true
+      // 如果未加载评论，可以在这里加载
+      if (!post.comments) {
+        this.loadComments(post)
+      }
+    },
+    closePostDetail() {
+      this.showPostDetailModal = false
+      this.selectedPost = null
     }
   }
 }
@@ -504,10 +630,37 @@ export default {
   margin-bottom: var(--spacing-md);
 }
 
+.title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: var(--spacing-xs);
+}
+
 .post-header h3 {
   font-size: 1.4rem;
   color: var(--text-primary);
-  margin: 0 0 var(--spacing-xs) 0;
+  margin: 0;
+  flex: 1;
+}
+
+.delete-post-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.delete-post-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .post-meta {
@@ -572,6 +725,56 @@ export default {
   background: rgba(245, 158, 11, 0.15);
   color: #f59e0b;
   border-color: rgba(245, 158, 11, 0.3);
+}
+
+.post-images-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.post-image-item {
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.post-image-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.post-image-item img:hover {
+  transform: scale(1.05);
+}
+
+.post-image-container {
+  margin-top: 1rem;
+  border-radius: 8px;
+  overflow: hidden;
+  max-height: 400px;
+}
+
+.post-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.upload-status {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-top: 0.5rem;
+}
+
+.upload-success {
+  font-size: 0.9rem;
+  color: var(--accent-color);
+  margin-top: 0.5rem;
 }
 
 /* Comments */
@@ -692,6 +895,37 @@ export default {
   max-height: 90vh;
   overflow-y: auto;
   padding: var(--spacing-xl);
+}
+
+.post-detail-modal {
+  max-width: 800px; /* Wider modal for details */
+}
+
+.post-detail-content .post-content {
+  font-size: 1.1rem;
+  margin-bottom: var(--spacing-lg);
+}
+
+.post-images-list-full {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.post-image-full-item, .post-image-full-container {
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0,0,0,0.2);
+}
+
+.post-image-full {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain; /* Ensure full image is visible */
+  max-height: 80vh; /* Prevent image from being too tall */
 }
 
 .modal-header {

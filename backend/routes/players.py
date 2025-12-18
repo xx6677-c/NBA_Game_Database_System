@@ -25,9 +25,10 @@ def get_players():
                 cursor.execute("""
                     SELECT p.player_id, p.姓名, p.位置, p.球衣号, p.身高, p.体重, 
                            p.出生日期, p.国籍, p.当前球队ID, t.名称 as team_name,
-                           p.合同到期, p.薪资
+                           p.合同到期, p.薪资, pi.image_id
                     FROM Player p 
                     LEFT JOIN Team t ON p.当前球队ID = t.team_id
+                    LEFT JOIN Player_Image pi ON p.player_id = pi.player_id AND pi.是否主图 = TRUE
                     WHERE p.当前球队ID = %s
                     ORDER BY p.球衣号
                 """, (team_id,))
@@ -35,9 +36,10 @@ def get_players():
                 cursor.execute("""
                     SELECT p.player_id, p.姓名, p.位置, p.球衣号, p.身高, p.体重, 
                            p.出生日期, p.国籍, p.当前球队ID, t.名称 as team_name,
-                           p.合同到期, p.薪资
+                           p.合同到期, p.薪资, pi.image_id
                     FROM Player p 
                     LEFT JOIN Team t ON p.当前球队ID = t.team_id
+                    LEFT JOIN Player_Image pi ON p.player_id = pi.player_id AND pi.是否主图 = TRUE
                     ORDER BY t.名称, p.球衣号
                 """)
             
@@ -56,7 +58,8 @@ def get_players():
                         'current_team_id': row[8],
                         'team_name': row[9],
                         'contract_expiry': row[10].strftime('%Y-%m-%d') if row[10] else None,
-                        'salary': float(row[11]) if row[11] else None
+                        'salary': float(row[11]) if row[11] else None,
+                        'photo_url': f'/api/images/{row[12]}' if row[12] else None
                     })
                 except Exception as e:
                     print(f"Error processing player row {row[0]}: {e}")
@@ -225,6 +228,63 @@ def delete_player(player_id):
             return jsonify({'message': '球员删除成功'}), 200
             
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@players_bp.route('/<int:player_id>/photo', methods=['POST'])
+@jwt_required()
+def upload_player_photo(player_id):
+    """上传球员照片（仅管理员）"""
+    current_user_id = get_jwt_identity()
+    
+    if not check_admin_permission(current_user_id):
+        return jsonify({'error': '权限不足，仅管理员可上传球员照片'}), 403
+        
+    if 'image' not in request.files:
+        return jsonify({'error': '没有上传文件'}), 400
+        
+    file = request.files['image']
+    if file.filename == '':
+        return jsonify({'error': '未选择文件'}), 400
+        
+    conn = db_config.get_connection()
+    if not conn:
+        return jsonify({'error': '数据库连接失败'}), 500
+        
+    try:
+        file_data = file.read()
+        mime_type = file.mimetype
+        filename = file.filename
+        
+        with conn.cursor() as cursor:
+            # 1. Insert into Image table
+            cursor.execute("""
+                INSERT INTO Image (user_id, 名称, 数据, MIME类型)
+                VALUES (%s, %s, %s, %s)
+            """, (current_user_id, filename, file_data, mime_type))
+            image_id = cursor.lastrowid
+            
+            # 2. Insert/Update Player_Image table
+            # First check if there is already a main image
+            cursor.execute("UPDATE Player_Image SET 是否主图 = FALSE WHERE player_id = %s", (player_id,))
+            
+            cursor.execute("""
+                INSERT INTO Player_Image (player_id, image_id, 类型, 是否主图)
+                VALUES (%s, %s, '头像', TRUE)
+            """, (player_id, image_id))
+            
+            conn.commit()
+            
+            return jsonify({
+                'message': '球员照片上传成功',
+                'image_id': image_id,
+                'url': f'/api/images/{image_id}'
+            }), 201
+            
+    except Exception as e:
+        conn.rollback()
         return jsonify({'error': str(e)}), 500
     finally:
         conn.close()

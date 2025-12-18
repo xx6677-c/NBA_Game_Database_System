@@ -11,6 +11,8 @@ def register_blueprints(app):
     from .posts import posts_bp
     from .comments import comments_bp
     from .query import query_bp
+    from .rankings import rankings_bp
+    from .images import images_bp
     
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(teams_bp, url_prefix='/api/teams')
@@ -19,3 +21,5 @@ def register_blueprints(app):
     app.register_blueprint(posts_bp, url_prefix='/api/posts')
     app.register_blueprint(comments_bp, url_prefix='/api/comments')
     app.register_blueprint(query_bp, url_prefix='/api/query')
+    app.register_blueprint(rankings_bp, url_prefix='/api/rankings')
+    app.register_blueprint(images_bp, url_prefix='/api/images')

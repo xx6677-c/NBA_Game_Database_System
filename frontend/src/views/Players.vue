@@ -24,6 +24,12 @@
     <div class="players-grid">
       <div v-for="player in players" :key="player.player_id" class="glass-card player-card">
         <div class="card-header">
+          <div class="player-avatar-wrapper">
+             <img v-if="player.photo_url" :src="player.photo_url" class="player-avatar" alt="Player Photo" />
+             <div v-else class="player-avatar-placeholder">
+               <el-icon><User /></el-icon>
+             </div>
+          </div>
           <div class="player-title">
             <h3>{{ player.name }}</h3>
           </div>
@@ -86,6 +92,15 @@
         </div>
         
         <form @submit.prevent="handleSubmit" class="glass-form">
+          <div class="form-group" v-if="modalMode === 'edit'">
+            <label>球员照片</label>
+            <div class="input-wrapper">
+              <el-icon><Picture /></el-icon>
+              <input type="file" @change="handlePhotoUpload" accept="image/*" class="glass-input">
+            </div>
+            <div v-if="uploadingPhoto" class="upload-status">上传中...</div>
+          </div>
+
           <div class="form-group">
             <label>姓名 *</label>
             <div class="input-wrapper">
@@ -184,7 +199,7 @@ import api from '../services/api'
 import { 
   Search, Plus, User, Trophy, Flag, Top, Odometer, 
   Calendar, Basketball, Edit, Delete, Loading, 
-  Close, Coordinate, PriceTag 
+  Close, Coordinate, PriceTag, Picture
 } from '@element-plus/icons-vue'
 
 export default {
@@ -192,7 +207,7 @@ export default {
   components: {
     Search, Plus, User, Trophy, Flag, Top, Odometer, 
     Calendar, Basketball, Edit, Delete, Loading, 
-    Close, Coordinate, PriceTag
+    Close, Coordinate, PriceTag, Picture
   },
   data() {
     return {
@@ -200,6 +215,7 @@ export default {
       teams: [],
       selectedTeam: '',
       loading: false,
+      uploadingPhoto: false,
       showModal: false,
       modalMode: 'create', // 'create' or 'edit'
       formData: {
@@ -335,6 +351,28 @@ export default {
         console.error('删除失败:', error)
         alert(error.message || '删除失败')
       }
+    },
+
+    async handlePhotoUpload(event) {
+      const file = event.target.files[0]
+      if (!file) return
+      
+      if (!this.formData.player_id) {
+        alert('请先保存球员信息再上传照片')
+        return
+      }
+      
+      this.uploadingPhoto = true
+      try {
+        await api.uploadPlayerPhoto(this.formData.player_id, file)
+        alert('照片上传成功')
+        await this.loadPlayers()
+      } catch (error) {
+        console.error('上传失败:', error)
+        alert(error.message || '上传失败')
+      } finally {
+        this.uploadingPhoto = false
+      }
     }
   }
 }
@@ -404,6 +442,30 @@ export default {
   padding: var(--spacing-md) var(--spacing-lg);
   gap: var(--spacing-lg);
   transition: all 0.3s ease;
+}
+
+.player-avatar-wrapper {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--accent-color);
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.player-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.player-avatar-placeholder {
+  font-size: 1.5rem;
+  color: var(--text-secondary);
 }
 
 .player-card:hover {

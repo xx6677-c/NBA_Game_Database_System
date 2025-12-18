@@ -9,11 +9,9 @@
       <div class="header-actions">
         <div class="compact-filters glass-card">
           <div class="filter-item">
-            <el-icon><Calendar /></el-icon>
             <input v-model="filters.date_from" type="date" class="glass-input sm-input" placeholder="开始">
           </div>
           <div class="filter-item">
-            <el-icon><Calendar /></el-icon>
             <input v-model="filters.date_to" type="date" class="glass-input sm-input" placeholder="结束">
           </div>
           <div class="filter-item">
@@ -51,6 +49,7 @@
         
         <div class="game-matchup">
           <div class="team home">
+            <img v-if="game.home_logo_url" :src="game.home_logo_url" class="team-logo-sm" alt="Home Logo" />
             <span class="team-name">{{ game.home_team }}</span>
             <span class="score">{{ game.home_score !== null ? game.home_score : '-' }}</span>
           </div>
@@ -58,6 +57,7 @@
           <div class="team away">
             <span class="score">{{ game.away_score !== null ? game.away_score : '-' }}</span>
             <span class="team-name">{{ game.away_team }}</span>
+            <img v-if="game.away_logo_url" :src="game.away_logo_url" class="team-logo-sm" alt="Away Logo" />
           </div>
         </div>
         
@@ -136,7 +136,8 @@
               <label>主队</label>
               <div class="input-wrapper">
                 <el-icon><House /></el-icon>
-                <select v-model="gameForm.home_team_id" class="glass-select" required @change="onHomeTeamChange">
+                <input v-if="isEditing" :value="gameForm.home_team" type="text" class="glass-input" readonly>
+                <select v-else v-model="gameForm.home_team_id" class="glass-select" required @change="onHomeTeamChange">
                   <option value="">选择主队</option>
                   <option v-for="team in teams" :key="team.team_id" :value="team.team_id">
                     {{ team.name }}
@@ -148,7 +149,8 @@
               <label>客队</label>
               <div class="input-wrapper">
                 <el-icon><Guide /></el-icon>
-                <select v-model="gameForm.away_team_id" class="glass-select" required>
+                <input v-if="isEditing" :value="gameForm.away_team" type="text" class="glass-input" readonly>
+                <select v-else v-model="gameForm.away_team_id" class="glass-select" required>
                   <option value="">选择客队</option>
                   <option v-for="team in teams" :key="team.team_id" :value="team.team_id">
                     {{ team.name }}
@@ -183,11 +185,11 @@
             <div class="form-row">
               <div class="form-group">
                 <label>主队得分</label>
-                <input v-model.number="gameForm.home_score" type="number" min="0" class="glass-input" required>
+                <input v-model.number="gameForm.home_score" type="number" min="0" step="1" class="glass-input" required>
               </div>
               <div class="form-group">
                 <label>客队得分</label>
-                <input v-model.number="gameForm.away_score" type="number" min="0" class="glass-input" required>
+                <input v-model.number="gameForm.away_score" type="number" min="0" step="1" class="glass-input" required>
               </div>
             </div>
             
@@ -202,19 +204,46 @@
               <div v-if="playerTemplate.length > 0" class="player-template custom-scrollbar">
                 <div v-for="player in playerTemplate" :key="player.player_id" class="player-stat-row">
                   <div class="player-info">
-                    <strong>{{ player.player_name }}</strong>
+                    <strong>{{ player.name }}</strong>
                     <span class="player-sub-info">({{ player.team_name }} #{{ player.jersey_number }})</span>
                   </div>
                   <div class="stat-inputs">
-                    <input v-model.number="playerStats[player.player_id].上场时间" type="number" min="0" step="0.1" placeholder="时间" class="glass-input sm-input" title="上场时间">
-                    <input v-model.number="playerStats[player.player_id].得分" type="number" min="0" placeholder="得分" class="glass-input sm-input" title="得分">
-                    <input v-model.number="playerStats[player.player_id].篮板" type="number" min="0" placeholder="篮板" class="glass-input sm-input" title="篮板">
-                    <input v-model.number="playerStats[player.player_id].助攻" type="number" min="0" placeholder="助攻" class="glass-input sm-input" title="助攻">
-                    <input v-model.number="playerStats[player.player_id].抢断" type="number" min="0" placeholder="抢断" class="glass-input sm-input" title="抢断">
-                    <input v-model.number="playerStats[player.player_id].盖帽" type="number" min="0" placeholder="盖帽" class="glass-input sm-input" title="盖帽">
-                    <input v-model.number="playerStats[player.player_id].失误" type="number" min="0" placeholder="失误" class="glass-input sm-input" title="失误">
-                    <input v-model.number="playerStats[player.player_id].犯规" type="number" min="0" placeholder="犯规" class="glass-input sm-input" title="犯规">
-                    <input v-model.number="playerStats[player.player_id].正负值" type="number" placeholder="+/-" class="glass-input sm-input" title="正负值">
+                    <div class="stat-field">
+                      <label>时间</label>
+                      <input v-model.number="playerStats[player.player_id].上场时间" type="number" min="0" step="1" placeholder="0" class="glass-input sm-input">
+                    </div>
+                    <div class="stat-field">
+                      <label>得分</label>
+                      <input v-model.number="playerStats[player.player_id].得分" type="number" min="0" step="1" placeholder="0" class="glass-input sm-input">
+                    </div>
+                    <div class="stat-field">
+                      <label>篮板</label>
+                      <input v-model.number="playerStats[player.player_id].篮板" type="number" min="0" step="1" placeholder="0" class="glass-input sm-input">
+                    </div>
+                    <div class="stat-field">
+                      <label>助攻</label>
+                      <input v-model.number="playerStats[player.player_id].助攻" type="number" min="0" step="1" placeholder="0" class="glass-input sm-input">
+                    </div>
+                    <div class="stat-field">
+                      <label>抢断</label>
+                      <input v-model.number="playerStats[player.player_id].抢断" type="number" min="0" step="1" placeholder="0" class="glass-input sm-input">
+                    </div>
+                    <div class="stat-field">
+                      <label>盖帽</label>
+                      <input v-model.number="playerStats[player.player_id].盖帽" type="number" min="0" step="1" placeholder="0" class="glass-input sm-input">
+                    </div>
+                    <div class="stat-field">
+                      <label>失误</label>
+                      <input v-model.number="playerStats[player.player_id].失误" type="number" min="0" step="1" placeholder="0" class="glass-input sm-input">
+                    </div>
+                    <div class="stat-field">
+                      <label>犯规</label>
+                      <input v-model.number="playerStats[player.player_id].犯规" type="number" min="0" step="1" placeholder="0" class="glass-input sm-input">
+                    </div>
+                    <div class="stat-field">
+                      <label>正负值</label>
+                      <input v-model.number="playerStats[player.player_id].正负值" type="number" step="1" placeholder="0" class="glass-input sm-input">
+                    </div>
                   </div>
                 </div>
               </div>
@@ -551,15 +580,16 @@ export default {
 }
 
 .sm-input, .sm-select {
-  padding: 6px 8px 6px 28px;
+  padding: 0 8px 0 32px;
   font-size: 0.9rem;
-  height: 32px;
-  width: 140px;
+  height: 38px;
+  line-height: 38px;
+  width: 160px;
 }
 
 .sm-select {
   width: auto;
-  min-width: 120px;
+  min-width: 140px;
 }
 
 .games-list {
@@ -617,6 +647,15 @@ export default {
 .team-name {
   font-size: 1.1rem;
   font-weight: 600;
+}
+
+.team-logo-sm {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .score {
@@ -855,6 +894,21 @@ export default {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
   gap: var(--spacing-sm);
+}
+
+.stat-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-field label {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .glass-input.sm-input {

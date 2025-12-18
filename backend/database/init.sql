@@ -104,7 +104,8 @@ CREATE TABLE IF NOT EXISTS Image (
     image_id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     名称 VARCHAR(50) NOT NULL,
-    文件路径 VARCHAR(255) NOT NULL,
+    数据 LONGBLOB NOT NULL,
+    MIME类型 VARCHAR(50) NOT NULL,
     上传时间 DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES User(user_id)
 );
@@ -165,7 +166,15 @@ CREATE TABLE IF NOT EXISTS Player_Image (
     FOREIGN KEY (image_id) REFERENCES Image(image_id)
 );
 
--- 15. 管理员-比赛数据录入关系表
+-- 15. 球队-队标关系表
+CREATE TABLE IF NOT EXISTS Team_Logo (
+    team_id INT PRIMARY KEY,
+    image_id INT NOT NULL UNIQUE,
+    FOREIGN KEY (team_id) REFERENCES Team(team_id) ON DELETE CASCADE,
+    FOREIGN KEY (image_id) REFERENCES Image(image_id) ON DELETE CASCADE
+);
+
+-- 16. 管理员-比赛数据录入关系表
 CREATE TABLE IF NOT EXISTS Admin_Insert (
     user_id INT NOT NULL,
     game_id INT NOT NULL,

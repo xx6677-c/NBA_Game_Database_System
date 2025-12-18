@@ -6,6 +6,7 @@ import Players from '../views/Players.vue'
 import Games from '../views/Games.vue'
 import GameDetails from '../views/GameDetails.vue'
 import PlayerGameDetails from '../views/PlayerGameDetails.vue'
+import Rankings from '../views/Rankings.vue'
 import Posts from '../views/Posts.vue'
 import Query from '../views/Query.vue'
 import Profile from '../views/Profile.vue'
@@ -54,6 +55,12 @@ const routes = [
     path: '/games/:gameId/players/:playerId',
     name: 'PlayerGameDetails',
     component: PlayerGameDetails,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/rankings',
+    name: 'Rankings',
+    component: Rankings,
     meta: { requiresAuth: true }
   },
   {

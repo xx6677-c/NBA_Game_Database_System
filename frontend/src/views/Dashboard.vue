@@ -19,12 +19,12 @@
               </div>
               <span>赛程表</span>
             </router-link>
-            <button class="nav-btn glass-card disabled" @click="showComingSoon('数据榜')">
+            <router-link to="/rankings" class="nav-btn glass-card">
               <div class="nav-icon-wrapper">
                 <el-icon><TrendCharts /></el-icon>
               </div>
               <span>数据榜</span>
-            </button>
+            </router-link>
             <router-link to="/teams" class="nav-btn glass-card">
               <div class="nav-icon-wrapper">
                 <el-icon><Basketball /></el-icon>
@@ -61,7 +61,8 @@
                 >
                   <div class="game-layout">
                     <div class="team-logo-side">
-                      <div class="team-logo-placeholder">
+                      <img v-if="game.home_logo_url" :src="game.home_logo_url" class="team-logo" alt="Home Logo" />
+                      <div v-else class="team-logo-placeholder">
                         <el-icon><Basketball /></el-icon>
                       </div>
                     </div>
@@ -80,7 +81,8 @@
                     </div>
 
                     <div class="team-logo-side">
-                      <div class="team-logo-placeholder">
+                      <img v-if="game.away_logo_url" :src="game.away_logo_url" class="team-logo" alt="Away Logo" />
+                      <div v-else class="team-logo-placeholder">
                         <el-icon><Basketball /></el-icon>
                       </div>
                     </div>
@@ -113,7 +115,8 @@
                 >
                   <div class="game-layout">
                     <div class="team-logo-side">
-                      <div class="team-logo-placeholder">
+                      <img v-if="game.home_logo_url" :src="game.home_logo_url" class="team-logo" alt="Home Logo" />
+                      <div v-else class="team-logo-placeholder">
                         <el-icon><Basketball /></el-icon>
                       </div>
                     </div>
@@ -130,7 +133,8 @@
                     </div>
 
                     <div class="team-logo-side">
-                      <div class="team-logo-placeholder">
+                      <img v-if="game.away_logo_url" :src="game.away_logo_url" class="team-logo" alt="Away Logo" />
+                      <div v-else class="team-logo-placeholder">
                         <el-icon><Basketball /></el-icon>
                       </div>
                     </div>
@@ -180,9 +184,10 @@
                     <span class="time">{{ formatRelativeTime(post.create_time) }}</span>
                   </div>
                 </div>
-                <div class="post-content">
+                <!-- 首页只显示标题和图片，隐藏内容摘要 -->
+                <!-- <div class="post-content">
                   <p>{{ truncateContent(post.content) }}</p>
-                </div>
+                </div> -->
                 <div class="post-stats">
                   <span class="stat"><el-icon><View /></el-icon> {{ post.view_count || 0 }}</span>
                   <span class="stat"><el-icon><Star /></el-icon> {{ post.like_count || 0 }}</span>
@@ -190,7 +195,8 @@
                 </div>
               </div>
               <div class="post-image-placeholder">
-                <el-icon><Picture /></el-icon>
+                <img v-if="post.image_url" :src="post.image_url" class="post-image-thumb" alt="Post Image">
+                <el-icon v-else><Picture /></el-icon>
               </div>
             </div>
           </div>
@@ -431,6 +437,15 @@ export default {
   justify-content: center;
 }
 
+.team-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 .team-logo-placeholder {
   width: 40px;
   height: 40px;
@@ -620,6 +635,13 @@ export default {
   color: var(--color-text-secondary);
   font-size: 0.8rem;
   border: 1px dashed rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.post-image-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .post-card-item:last-child {

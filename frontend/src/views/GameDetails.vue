@@ -132,7 +132,10 @@
               @click="goToPlayerDetail(player.player_id)"
             >
               <div class="player-avatar">
-                <img src="/images/default-avatar.png" alt="avatar" @error="handleImageError">
+                <img v-if="player.photo_url" :src="player.photo_url" alt="avatar" @error="handleImageError">
+                <div v-else class="avatar-placeholder">
+                  <el-icon><User /></el-icon>
+                </div>
               </div>
               <div class="player-info">
                 <div class="player-name">{{ player.name }}</div>
@@ -164,7 +167,10 @@
               @click="goToPlayerDetail(player.player_id)"
             >
               <div class="player-avatar">
-                <img src="/images/default-avatar.png" alt="avatar" @error="handleImageError">
+                <img v-if="player.photo_url" :src="player.photo_url" alt="avatar" @error="handleImageError">
+                <div v-else class="avatar-placeholder">
+                  <el-icon><User /></el-icon>
+                </div>
               </div>
               <div class="player-info">
                 <div class="player-name">{{ player.name }}</div>
@@ -444,6 +450,18 @@ export default {
   height: 60px;
   border-radius: 50%;
   object-fit: cover;
+}
+
+.avatar-placeholder {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: var(--text-secondary);
 }
 
 .player-info {

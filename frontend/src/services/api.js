@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://127.0.0.1:5000/api'
+const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || '/api'
 
 class ApiService {
   constructor() {
@@ -50,6 +50,48 @@ class ApiService {
       
       throw error
     }
+  }
+
+  /**
+   * 通用GET请求
+   */
+  async get(endpoint, options = {}) {
+    return this.request(endpoint, {
+      method: 'GET',
+      ...options
+    })
+  }
+
+  /**
+   * 通用POST请求
+   */
+  async post(endpoint, body = {}, options = {}) {
+    return this.request(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      ...options
+    })
+  }
+
+  /**
+   * 通用PUT请求
+   */
+  async put(endpoint, body = {}, options = {}) {
+    return this.request(endpoint, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+      ...options
+    })
+  }
+
+  /**
+   * 通用DELETE请求
+   */
+  async delete(endpoint, options = {}) {
+    return this.request(endpoint, {
+      method: 'DELETE',
+      ...options
+    })
   }
 
   /**
@@ -127,6 +169,34 @@ class ApiService {
     })
   }
 
+  async uploadTeamLogo(teamId, file) {
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    // request 方法默认 Content-Type 为 application/json，这里需要让浏览器自动设置 multipart/form-data
+    // 所以我们传入 headers: {} 覆盖默认设置，但实际上 fetch 会自动处理 FormData
+    // 我们需要修改 request 方法来支持 FormData，或者在这里特殊处理
+    
+    const url = `${API_BASE_URL}/teams/${teamId}/logo`
+    const config = {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.token}`
+        // 不要设置 Content-Type，让浏览器自动设置 boundary
+      },
+      body: formData
+    }
+    
+    const response = await fetch(url, config)
+    const data = await response.json()
+    
+    if (!response.ok) {
+      throw new Error(data.error || data.message || '上传失败')
+    }
+    
+    return data
+  }
+
   // 球员管理
   async getPlayers(teamId = null) {
     const params = teamId ? `?team_id=${teamId}` : ''
@@ -151,6 +221,52 @@ class ApiService {
     return this.request(`/players/${playerId}`, {
       method: 'DELETE'
     })
+  }
+
+  async uploadImage(file) {
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    const url = `${API_BASE_URL}/images/upload`
+    const headers = {}
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`
+    }
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: headers,
+      body: formData
+    })
+    
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error || '上传失败')
+    }
+    return data
+  }
+
+  async uploadPlayerPhoto(playerId, file) {
+    const formData = new FormData()
+    formData.append('image', file)
+    
+    const url = `${API_BASE_URL}/players/${playerId}/photo`
+    const headers = {}
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`
+    }
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: headers,
+      body: formData
+    })
+    
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error || '上传失败')
+    }
+    return data
   }
 
   // 比赛管理
@@ -197,6 +313,12 @@ class ApiService {
     return this.request('/posts', {
       method: 'POST',
       body: JSON.stringify(postData)
+    })
+  }
+
+  async deletePost(postId) {
+    return this.request(`/posts/${postId}`, {
+      method: 'DELETE'
     })
   }
 
