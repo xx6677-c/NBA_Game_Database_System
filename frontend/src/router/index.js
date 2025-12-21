@@ -10,6 +10,7 @@ import Rankings from '../views/Rankings.vue'
 import Posts from '../views/Posts.vue'
 import Query from '../views/Query.vue'
 import Profile from '../views/Profile.vue'
+import PlayerComparison from '../views/PlayerComparison.vue'
 
 const routes = [
   {
@@ -37,6 +38,12 @@ const routes = [
     path: '/players',
     name: 'Players',
     component: Players,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/comparison',
+    name: 'PlayerComparison',
+    component: PlayerComparison,
     meta: { requiresAuth: true }
   },
   {

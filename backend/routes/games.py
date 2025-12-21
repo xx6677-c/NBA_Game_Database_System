@@ -85,9 +85,110 @@ def get_games():
         conn.close()
 
 
+@games_bp.route('/<int:game_id>/claim', methods=['POST'])
+@jwt_required()
+def claim_reward(game_id):
+    """领取竞猜奖励"""
+    current_user_id = get_jwt_identity()
+    
+    conn = db_config.get_connection()
+    if not conn:
+        return jsonify({'error': '数据库连接失败'}), 500
+        
+    try:
+        with conn.cursor() as cursor:
+            # 1. 检查比赛状态和竞猜结果
+            cursor.execute("""
+                SELECT g.状态, g.获胜球队ID, p.predicted_team_id, p.is_claimed
+                FROM Prediction p
+                JOIN Game g ON p.game_id = g.game_id
+                WHERE p.game_id = %s AND p.user_id = %s
+            """, (game_id, current_user_id))
+            
+            result = cursor.fetchone()
+            
+            if not result:
+                return jsonify({'error': '未找到竞猜记录'}), 404
+                
+            status, winner_id, predicted_id, is_claimed = result
+            
+            if status != '已结束':
+                return jsonify({'error': '比赛尚未结束'}), 400
+                
+            if winner_id != predicted_id:
+                return jsonify({'error': '竞猜失败，无法领取奖励'}), 400
+                
+            if is_claimed:
+                return jsonify({'error': '奖励已领取'}), 400
+                
+            # 2. 发放奖励 (更新用户积分和领取状态)
+            # 奖励 100 积分
+            reward_points = 100
+            
+            cursor.execute("UPDATE User SET points = points + %s WHERE user_id = %s", (reward_points, current_user_id))
+            cursor.execute("UPDATE Prediction SET is_claimed = TRUE WHERE game_id = %s AND user_id = %s", (game_id, current_user_id))
+            
+            conn.commit()
+            
+            return jsonify({'message': f'恭喜！成功领取 {reward_points} 积分', 'points': reward_points}), 200
+            
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@games_bp.route('/<int:game_id>/predict', methods=['POST'])
+@jwt_required()
+def predict_game(game_id):
+    """比赛竞猜投票"""
+    current_user_id = get_jwt_identity()
+    data = request.get_json()
+    team_id = data.get('team_id')
+    
+    if not team_id:
+        return jsonify({'error': '请选择支持的球队'}), 400
+        
+    conn = db_config.get_connection()
+    if not conn:
+        return jsonify({'error': '数据库连接失败'}), 500
+        
+    try:
+        with conn.cursor() as cursor:
+            # 1. 检查比赛状态
+            cursor.execute("SELECT 状态, 日期 FROM Game WHERE game_id = %s", (game_id,))
+            game = cursor.fetchone()
+            
+            if not game:
+                return jsonify({'error': '比赛不存在'}), 404
+                
+            if game[0] != '未开始':
+                return jsonify({'error': '比赛已开始或已结束，无法投票'}), 400
+                
+            # 2. 插入或更新投票
+            # 使用 ON DUPLICATE KEY UPDATE 实现"可随意更改"
+            cursor.execute("""
+                INSERT INTO Prediction (user_id, game_id, predicted_team_id)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE predicted_team_id = VALUES(predicted_team_id)
+            """, (current_user_id, game_id, team_id))
+            
+            conn.commit()
+            return jsonify({'message': '投票成功'}), 200
+            
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
 @games_bp.route('/<int:game_id>', methods=['GET'])
+@jwt_required(optional=True)
 def get_game_detail(game_id):
     """获取比赛详情"""
+    current_user_id = get_jwt_identity()
     conn = db_config.get_connection()
     if not conn:
         return jsonify({'error': '数据库连接失败'}), 500
@@ -99,7 +200,7 @@ def get_game_detail(game_id):
                 SELECT g.game_id, g.赛季, g.日期, g.状态, g.主队得分, g.客队得分,
                        g.主队ID, g.客队ID,
                        ht.名称 as home_team, at.名称 as away_team,
-                       wt.名称 as winner_team, g.场馆
+                       wt.名称 as winner_team, g.场馆, g.获胜球队ID
                 FROM Game g
                 JOIN Team ht ON g.主队ID = ht.team_id
                 JOIN Team at ON g.客队ID = at.team_id
@@ -123,8 +224,52 @@ def get_game_detail(game_id):
                 'home_team': game[8],
                 'away_team': game[9],
                 'winner_team': game[10],
-                'venue': game[11]
+                'venue': game[11],
+                'winner_team_id': game[12]
             }
+
+            # 获取竞猜数据
+            # 1. 统计双方支持数
+            cursor.execute("""
+                SELECT predicted_team_id, COUNT(*) 
+                FROM Prediction 
+                WHERE game_id = %s 
+                GROUP BY predicted_team_id
+            """, (game_id,))
+            
+            predictions = cursor.fetchall()
+            home_votes = 0
+            away_votes = 0
+            
+            for team_id, count in predictions:
+                if team_id == game_data['home_team_id']:
+                    home_votes = count
+                elif team_id == game_data['away_team_id']:
+                    away_votes = count
+            
+            total_votes = home_votes + away_votes
+            game_data['prediction'] = {
+                'home_votes': home_votes,
+                'away_votes': away_votes,
+                'total_votes': total_votes,
+                'home_percent': round(home_votes / total_votes * 100) if total_votes > 0 else 50,
+                'away_percent': round(away_votes / total_votes * 100) if total_votes > 0 else 50
+            }
+            
+            # 2. 获取当前用户投票状态
+            if current_user_id:
+                cursor.execute("""
+                    SELECT predicted_team_id, is_claimed
+                    FROM Prediction 
+                    WHERE game_id = %s AND user_id = %s
+                """, (game_id, current_user_id))
+                user_vote = cursor.fetchone()
+                if user_vote:
+                    game_data['user_prediction'] = user_vote[0]
+                    game_data['is_claimed'] = bool(user_vote[1])
+                else:
+                    game_data['user_prediction'] = None
+                    game_data['is_claimed'] = False
             
             # 如果比赛已结束，获取球员比赛数据
             if game[3] == '已结束':

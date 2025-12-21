@@ -62,14 +62,14 @@
 
       <!-- 统计信息 -->
       <div class="stats-grid">
-        <div class="glass-card stat-card">
+        <div class="glass-card stat-card clickable" @click="scrollToSection('posts')">
           <div class="stat-icon"><el-icon><Document /></el-icon></div>
           <div class="stat-content">
             <h3>发帖数量</h3>
             <p class="stat-number">{{ userPosts.length }}</p>
           </div>
         </div>
-        <div class="glass-card stat-card">
+        <div class="glass-card stat-card clickable" @click="scrollToSection('ratings')">
           <div class="stat-icon"><el-icon><Star /></el-icon></div>
           <div class="stat-content">
             <h3>评分数量</h3>
@@ -90,19 +90,147 @@
             <p class="stat-number">{{ totalLikes }}</p>
           </div>
         </div>
+        <div class="glass-card stat-card clickable" @click="showPointsHistory = true">
+          <div class="stat-icon"><el-icon><Trophy /></el-icon></div>
+          <div class="stat-content">
+            <h3>我的积分</h3>
+            <p class="stat-number">{{ userInfo.points || 0 }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 积分兑换区 -->
+      <div class="redeem-section glass-card">
+        <div class="redeem-header">
+          <h3><el-icon><Present /></el-icon> 积分兑换</h3>
+          <span class="points-balance">当前余额: {{ userInfo.points || 0 }} 积分</span>
+        </div>
+        <div class="redeem-content">
+          <div class="redeem-item">
+            <div class="item-icon card-pack-icon">
+              <el-icon><Files /></el-icon>
+            </div>
+            <div class="item-info">
+              <h4>随机球星卡包</h4>
+              <p>随机获得一张现役球员卡片</p>
+            </div>
+            <button class="glass-btn primary-btn redeem-btn" @click="handleDrawCard" :disabled="drawing || (userInfo.points || 0) < 50">
+              <span v-if="drawing">抽取中...</span>
+              <span v-else>50 积分兑换</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 我的球星卡 -->
+      <div class="glass-card profile-card" v-if="userCards.length > 0">
+        <div class="card-header">
+          <h3><el-icon><Files /></el-icon> 我的球星卡 ({{ userCards.length }})</h3>
+        </div>
+        <div class="cards-grid custom-scrollbar">
+          <div v-for="card in userCards" :key="card.card_id" class="player-card">
+            <div class="card-image-container">
+              <img v-if="card.photo_url" :src="card.photo_url" alt="player" class="player-photo">
+              <div v-else class="card-placeholder">
+                <el-icon><User /></el-icon>
+              </div>
+            </div>
+            <div class="card-content">
+              <div class="card-name">{{ card.name }}</div>
+              <div class="card-details">
+                <div class="card-team">{{ card.team_name }} #{{ card.jersey_number }}</div>
+                <div class="card-date">获得于 {{ card.get_time.split(' ')[0] }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 抽卡结果弹窗 -->
+      <div v-if="showDrawResult" class="modal-overlay" @click.self="showDrawResult = false">
+        <div class="glass-card modal-content draw-modal">
+          <div class="modal-header">
+            <h2 class="modal-title success">恭喜获得！</h2>
+            <button class="close-btn" @click="showDrawResult = false">
+              <el-icon><Close /></el-icon>
+            </button>
+          </div>
+          
+          <div class="draw-result-content" v-if="drawnCard">
+            <div class="result-card">
+              <div class="card-image-container">
+                <img v-if="drawnCard.photo_url" :src="drawnCard.photo_url" alt="player" class="player-photo">
+                <div v-else class="card-placeholder">
+                  <el-icon><User /></el-icon>
+                </div>
+              </div>
+              <div class="card-content">
+                <div class="card-name">{{ drawnCard.name }}</div>
+                <div class="card-details">
+                  <div class="card-team">{{ drawnCard.team_name }} #{{ drawnCard.jersey_number }}</div>
+                  <div class="card-date">获得于 {{ new Date().toISOString().split('T')[0] }}</div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="draw-actions">
+              <button class="glass-btn primary-btn" @click="handleDrawCard" :disabled="drawing || (userInfo.points || 0) < 50">
+                {{ drawing ? '抽取中...' : '再抽一次 (50积分)' }}
+              </button>
+              <button class="glass-btn" @click="showDrawResult = false">关闭</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 积分历史弹窗 -->
+      <div v-if="showPointsHistory" class="modal-overlay" @click.self="showPointsHistory = false">
+        <div class="glass-card modal-content points-modal">
+          <div class="modal-header">
+            <h2 class="modal-title">积分记录</h2>
+            <button class="close-btn" @click="showPointsHistory = false">
+              <el-icon><Close /></el-icon>
+            </button>
+          </div>
+          
+          <div class="points-list custom-scrollbar">
+            <div v-if="pointsHistory.length === 0" class="empty-state">
+              <el-icon><Trophy /></el-icon>
+              <p>暂无积分记录</p>
+            </div>
+            <div v-else v-for="(record, index) in pointsHistory" :key="index" class="point-item">
+              <div class="point-info">
+                <div class="point-title">{{ record.description }}</div>
+                <div class="point-date">{{ record.date }}</div>
+              </div>
+              <div class="point-value positive">+{{ record.points }}</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 我的帖子 -->
-      <div class="glass-card profile-card">
+      <div class="glass-card profile-card" ref="postsSection">
         <div class="card-header">
           <h3><el-icon><Document /></el-icon> 我的帖子 ({{ userPosts.length }})</h3>
+          <button 
+            v-if="userPosts.length > 1" 
+            class="glass-btn sm-btn toggle-btn" 
+            @click="isPostsExpanded = !isPostsExpanded"
+          >
+            {{ isPostsExpanded ? '收起' : '展开更多' }}
+            <el-icon class="toggle-icon">
+              <ArrowUp v-if="isPostsExpanded" />
+              <ArrowDown v-else />
+            </el-icon>
+          </button>
         </div>
         <div v-if="userPosts.length === 0" class="empty-state">
           <el-icon><DocumentRemove /></el-icon>
           <p>您还没有发布过任何帖子</p>
         </div>
-        <div v-else class="posts-list custom-scrollbar">
-          <div v-for="post in userPosts" :key="post.post_id" class="post-item glass-card inner-card">
+        <div v-else class="posts-list custom-scrollbar" :class="{ 'collapsed': !isPostsExpanded }">
+          <div v-for="post in (isPostsExpanded ? userPosts : userPosts.slice(0, 1))" :key="post.post_id" class="post-item glass-card inner-card">
             <div class="post-header">
               <h4>{{ post.title }}</h4>
               <span class="post-time">{{ post.create_time }}</span>
@@ -124,16 +252,27 @@
       </div>
 
       <!-- 我的评分 -->
-      <div class="glass-card profile-card">
+      <div class="glass-card profile-card" ref="ratingsSection">
         <div class="card-header">
           <h3><el-icon><Star /></el-icon> 我的评分 ({{ userRatings.length }})</h3>
+          <button 
+            v-if="userRatings.length > 1" 
+            class="glass-btn sm-btn toggle-btn" 
+            @click="isRatingsExpanded = !isRatingsExpanded"
+          >
+            {{ isRatingsExpanded ? '收起' : '展开更多' }}
+            <el-icon class="toggle-icon">
+              <ArrowUp v-if="isRatingsExpanded" />
+              <ArrowDown v-else />
+            </el-icon>
+          </button>
         </div>
         <div v-if="userRatings.length === 0" class="empty-state">
           <el-icon><StarFilled /></el-icon>
           <p>您还没有对任何球员进行评分</p>
         </div>
-        <div v-else class="ratings-list custom-scrollbar">
-          <div v-for="rating in userRatings" :key="`${rating.user_id}-${rating.player_id}-${rating.game_id}`" class="rating-item glass-card inner-card">
+        <div v-else class="ratings-list custom-scrollbar" :class="{ 'collapsed': !isRatingsExpanded }">
+          <div v-for="rating in (isRatingsExpanded ? userRatings : userRatings.slice(0, 1))" :key="`${rating.user_id}-${rating.player_id}-${rating.game_id}`" class="rating-item glass-card inner-card">
             <div class="rating-header">
               <div class="player-info">
                 <h4>{{ rating.player_name }}</h4>
@@ -255,14 +394,16 @@
 import api from '../services/api'
 import { 
   User, Edit, Document, Star, View, Pointer, DocumentRemove, StarFilled, 
-  SwitchButton, Delete, Warning, Lock 
+  SwitchButton, Delete, Warning, Lock, Trophy, Close, ArrowDown, ArrowUp,
+  Present, Files
 } from '@element-plus/icons-vue'
 
 export default {
   name: 'Profile',
   components: {
     User, Edit, Document, Star, View, Pointer, DocumentRemove, StarFilled, 
-    SwitchButton, Delete, Warning, Lock
+    SwitchButton, Delete, Warning, Lock, Trophy, Close, ArrowDown, ArrowUp,
+    Present, Files
   },
   data() {
     return {
@@ -277,7 +418,15 @@ export default {
       showLogoutModal: false,
       logoutPassword: '',
       logoutConfirmed: false,
-      isLoggingOut: false
+      isLoggingOut: false,
+      showPointsHistory: false,
+      pointsHistory: [],
+      isPostsExpanded: false,
+      isRatingsExpanded: false,
+      userCards: [],
+      drawnCard: null,
+      showDrawResult: false,
+      drawing: false
     }
   },
   computed: {
@@ -311,9 +460,69 @@ export default {
         const ratingsData = await api.getUserRatings()
         this.userRatings = ratingsData
 
+        // 加载积分历史
+        const pointsData = await api.getUserPointsHistory()
+        this.pointsHistory = pointsData
+
+        // 加载用户卡片
+        await this.loadUserCards()
+
       } catch (error) {
         console.error('加载用户数据失败:', error)
         alert('加载用户数据失败')
+      }
+    },
+
+    async loadUserCards() {
+      try {
+        const cards = await api.getMyCards()
+        this.userCards = cards
+      } catch (error) {
+        console.error('加载卡片失败:', error)
+      }
+    },
+
+    async handleDrawCard() {
+      if (this.userInfo.points < 50) {
+        alert('积分不足，无法抽卡')
+        return
+      }
+      
+      this.drawing = true
+      try {
+        const result = await api.drawCard()
+        this.drawnCard = result.card
+        this.userInfo.points = result.remaining_points // 更新积分显示
+        this.showDrawResult = true
+        await this.loadUserCards() // 重新加载卡片列表
+        
+        // 添加到积分历史 (可选，如果后端没有自动添加的话，或者重新加载积分历史)
+        const pointsData = await api.getUserPointsHistory()
+        this.pointsHistory = pointsData
+        
+      } catch (error) {
+        console.error('抽卡失败:', error)
+        alert(error.response?.data?.error || '抽卡失败，请稍后重试')
+      } finally {
+        this.drawing = false
+      }
+    },
+
+    closeDrawResult() {
+      this.showDrawResult = false
+      this.drawnCard = null
+    },
+
+    scrollToSection(section) {
+      const element = section === 'posts' ? this.$refs.postsSection : this.$refs.ratingsSection
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        // 自动展开对应部分
+        if (section === 'posts') {
+          this.isPostsExpanded = true
+        } else if (section === 'ratings') {
+          this.isRatingsExpanded = true
+        }
       }
     },
 
@@ -461,26 +670,29 @@ export default {
 
 .user-info {
   display: grid;
-  gap: var(--spacing-md);
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 40px;
 }
 
 .info-item {
   display: flex;
   align-items: center;
-  padding: var(--spacing-sm) 0;
-  border-bottom: 1px solid rgba(0,0,0,0.05);
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
 .info-item label {
   font-weight: 600;
   color: var(--text-secondary);
-  width: 120px;
+  width: 80px;
   flex-shrink: 0;
+  font-size: 0.9rem;
 }
 
 .info-value {
   color: var(--text-primary);
   flex: 1;
+  font-size: 0.95rem;
 }
 
 .role-badge {
@@ -488,25 +700,42 @@ export default {
   color: white;
   padding: 2px 10px;
   border-radius: 12px;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 
 .sm-input {
   padding: 4px 8px;
-  width: 200px;
+  width: 100%;
 }
 
 .edit-actions {
+  grid-column: 1 / -1;
   display: flex;
   gap: var(--spacing-sm);
-  margin-top: var(--spacing-md);
+  margin-top: 10px;
   justify-content: flex-end;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.05);
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(5, 1fr);
   gap: var(--spacing-md);
+  overflow-x: auto;
+}
+
+@media (max-width: 1200px) {
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .user-info {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
 }
 
 .stat-card {
@@ -853,5 +1082,324 @@ export default {
   .modal-actions button {
     width: 100%;
   }
+}
+
+/* Points Modal Styles */
+.points-modal {
+  max-width: 600px;
+}
+
+.points-list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+.toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.85rem;
+  padding: 4px 12px;
+}
+
+.toggle-icon {
+  font-size: 12px;
+}
+
+.posts-list.collapsed, .ratings-list.collapsed {
+  max-height: none;
+  overflow: visible;
+}
+
+.point-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  transition: background 0.3s;
+}
+
+.point-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.point-info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.point-title {
+  font-weight: bold;
+  color: var(--text-primary);
+}
+
+.point-date {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.point-value {
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.point-value.positive {
+  color: #67C23A;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 1.5rem;
+  padding: 5px;
+  transition: color 0.3s;
+}
+
+.close-btn:hover {
+  color: var(--text-primary);
+}
+
+.clickable {
+  cursor: pointer;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.clickable:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+/* Shop Styles */
+.redeem-content {
+  display: flex;
+  justify-content: center;
+  padding: 20px 0;
+}
+
+.shop-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  width: 100%;
+  max-width: 300px;
+}
+
+.shop-icon {
+  font-size: 48px;
+  color: var(--primary-color);
+}
+
+.shop-info h3 {
+  margin: 0 0 5px 0;
+  color: var(--text-primary);
+}
+
+.shop-info p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.cost-badge {
+  background: rgba(255, 215, 0, 0.2);
+  color: #ffd700;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  margin-left: 8px;
+}
+
+.draw-btn {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Cards Grid */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 25px;
+  padding: 20px 10px;
+}
+
+.player-card {
+  background-image: url('~@/assets/card-bg.png');
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-color: transparent;
+  border-radius: 15px;
+  position: relative;
+  transition: all 0.3s ease;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+  aspect-ratio: 3/4.2;
+  /* Remove padding to use absolute positioning */
+  padding: 0;
+}
+
+.player-card:hover {
+  transform: translateY(-10px) scale(1.02);
+  box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+  z-index: 10;
+}
+
+.card-image-container {
+  position: absolute;
+  top: 9%;
+  left: 13.7%;
+  width: 73%;
+  height: 50%;
+  border-radius: 2px;
+  overflow: hidden;
+  background: #1a1a1a;
+  z-index: 1;
+}
+
+.player-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+.card-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.card-name {
+  position: absolute;
+  top: 61%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  font-size: 1.2rem;
+  font-weight: 900;
+  color: #D4AF37; /* Dark Gold */
+  text-align: center;
+  text-shadow: 
+    2px 2px 0 #000, 
+    -1px -1px 0 #000, 
+    1px -1px 0 #000, 
+    -1px 1px 0 #000, 
+    1px 1px 0 #000,
+    0 0 15px rgba(255, 215, 0, 0.8), 0 0 25px rgba(255, 215, 0, 0.4);
+  letter-spacing: 1px;
+  font-family: "Microsoft YaHei", sans-serif;
+  line-height: 1.2;
+  z-index: 2;
+  
+  /* Background to hide original text */
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 70%, rgba(0,0,0,0) 100%);
+  padding: 5px 10px;
+  border-radius: 20px;
+}
+
+.card-details {
+  position: absolute;
+  bottom: 13%;
+  left: 10%;
+  width: 80%;
+  height: 17.5%;
+  
+  background: linear-gradient(to bottom, #a8a8a8 0%, #696969 50%, #a8a8a8 100%);
+  border-radius: 6px;
+  border: 1px solid #5a5959;
+  box-shadow: inset 0 1px 0 rgb(182, 181, 181), 0 2px 4px rgba(0,0,0,0.8);
+  
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.card-team {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #f0f0f0;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  margin-bottom: 2px;
+}
+
+.card-date {
+  font-size: 0.85rem;
+  color: #ccc;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+
+.card-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  color: #666;
+}
+
+/* Draw Result Modal */
+.draw-result-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+}
+
+.result-card {
+  width: 320px;
+  background-image: url('~@/assets/card-bg.png');
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-color: transparent;
+  border-radius: 15px;
+  aspect-ratio: 3/4.2;
+  position: relative;
+  box-shadow: 0 0 50px rgba(255, 215, 0, 0.4);
+  animation: popIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  /* Remove padding */
+  padding: 0;
+}
+
+.result-image {
+  display: none; /* Deprecated */
+}
+
+.result-info {
+  display: none; /* Deprecated */
+}
+
+.result-info p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+@keyframes popIn {
+  0% { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.draw-actions {
+  display: flex;
+  gap: 15px;
+  margin-top: 20px;
 }
 </style>

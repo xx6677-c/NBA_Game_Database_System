@@ -19,6 +19,9 @@ NBA比赛数据库系统已成功从单体架构重构为模块化架构！
 - ✅ `routes/posts.py` - 帖子管理路由 (5个端点)
 - ✅ `routes/comments.py` - 评论管理路由
 - ✅ `routes/query.py` - SQL查询路由 (仅分析师)
+- ✅ `routes/rankings.py` - 排行榜路由
+- ✅ `routes/images.py` - 图片服务路由
+- ✅ `routes/shop.py` - 积分商城路由
 
 #### 工具模块 (utils/)
 - ✅ `utils/__init__.py`

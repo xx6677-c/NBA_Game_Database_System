@@ -203,6 +203,14 @@ class ApiService {
     return this.request(`/players${params}`)
   }
 
+  async getPlayer(playerId) {
+    return this.request(`/players/${playerId}`)
+  }
+
+  async getPlayerStats(playerId) {
+    return this.request(`/players/${playerId}/stats`)
+  }
+
   async createPlayer(playerData) {
     return this.request('/players', {
       method: 'POST',
@@ -284,6 +292,19 @@ class ApiService {
 
   async getGameDetail(gameId) {
     return this.request(`/games/${gameId}`)
+  }
+
+  async predictGame(gameId, teamId) {
+    return this.request(`/games/${gameId}/predict`, {
+      method: 'POST',
+      body: JSON.stringify({ team_id: teamId })
+    })
+  }
+
+  async claimReward(gameId) {
+    return this.request(`/games/${gameId}/claim`, {
+      method: 'POST'
+    })
   }
 
   async updateGame(gameId, gameData) {
@@ -415,6 +436,10 @@ class ApiService {
     return this.request('/auth/me/ratings')
   }
 
+  async getUserPointsHistory() {
+    return this.request('/auth/me/points-history')
+  }
+
   async logout() {
     try {
       await this.request('/auth/logout', {
@@ -466,6 +491,17 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify({ content })
     })
+  }
+
+  // 商店相关
+  async drawCard() {
+    return this.request('/shop/draw', {
+      method: 'POST'
+    })
+  }
+
+  async getMyCards() {
+    return this.request('/shop/my-cards')
   }
 }
 

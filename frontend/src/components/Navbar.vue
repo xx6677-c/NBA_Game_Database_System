@@ -21,6 +21,11 @@
           <el-icon><User /></el-icon>
           <span>球员</span>
         </router-link>
+
+        <router-link to="/comparison" class="nav-link">
+          <el-icon><DataLine /></el-icon>
+          <span>对比</span>
+        </router-link>
         
         <router-link to="/games" class="nav-link">
           <el-icon><VideoPlay /></el-icon>

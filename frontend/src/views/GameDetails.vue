@@ -29,6 +29,90 @@
         </div>
       </div>
 
+      <!-- Prediction Section -->
+      <div class="prediction-section glass-card" v-if="game.prediction">
+        <h3>
+          <el-icon><Trophy /></el-icon> 胜负竞猜
+          <span class="vote-count">({{ game.prediction.total_votes }} 人参与)</span>
+        </h3>
+        
+        <!-- 投票按钮 (未开始且未投票) -->
+        <div v-if="game.status === '未开始'" class="vote-buttons">
+          <button 
+            class="vote-btn home-btn" 
+            :class="{ active: game.user_prediction === game.home_team_id }"
+            @click="handleVote(game.home_team_id)"
+          >
+            支持 {{ game.home_team }}
+            <el-icon v-if="game.user_prediction === game.home_team_id"><Select /></el-icon>
+          </button>
+          
+          <div class="vs-text">VS</div>
+          
+          <button 
+            class="vote-btn away-btn" 
+            :class="{ active: game.user_prediction === game.away_team_id }"
+            @click="handleVote(game.away_team_id)"
+          >
+            支持 {{ game.away_team }}
+            <el-icon v-if="game.user_prediction === game.away_team_id"><Select /></el-icon>
+          </button>
+        </div>
+
+        <!-- 进度条 (已结束或已投票) -->
+        <div class="prediction-bar-container">
+          <div class="prediction-bar">
+            <div 
+              class="bar-segment home" 
+              :style="{ width: game.prediction.home_percent + '%' }"
+            >
+              <span v-if="game.prediction.home_percent > 10">{{ game.prediction.home_percent }}%</span>
+            </div>
+            <div 
+              class="bar-segment away" 
+              :style="{ width: game.prediction.away_percent + '%' }"
+            >
+              <span v-if="game.prediction.away_percent > 10">{{ game.prediction.away_percent }}%</span>
+            </div>
+          </div>
+          <div class="bar-labels">
+            <span :class="{ highlight: game.user_prediction === game.home_team_id }">
+              {{ game.home_team }}
+              <span v-if="game.user_prediction === game.home_team_id">(已投)</span>
+            </span>
+            <span :class="{ highlight: game.user_prediction === game.away_team_id }">
+              {{ game.away_team }}
+              <span v-if="game.user_prediction === game.away_team_id">(已投)</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- 结果展示 (已结束) -->
+        <div v-if="game.status === '已结束' && game.user_prediction" class="prediction-result">
+          <div v-if="game.user_prediction === game.winner_team_id" class="result-container">
+            <div class="result-badge win">
+              <el-icon><Medal /></el-icon> 恭喜你猜对了！
+            </div>
+            
+            <button 
+              v-if="!game.is_claimed" 
+              class="claim-btn" 
+              @click="handleClaim"
+              :disabled="claiming"
+            >
+              <el-icon><Present /></el-icon> 领取 100 积分
+            </button>
+            <div v-else class="claimed-badge">
+              <el-icon><Check /></el-icon> 奖励已领取
+            </div>
+          </div>
+          
+          <div v-else class="result-badge lose">
+            <el-icon><CloseBold /></el-icon> 很遗憾猜错了
+          </div>
+        </div>
+      </div>
+
       <!-- Tabs -->
       <div class="tabs-container">
         <button 
@@ -193,23 +277,37 @@
         </div>
       </div>
     </template>
+    
+    <div v-else class="empty-state">
+      <el-empty description="未找到比赛信息" />
+    </div>
   </div>
 </template>
 
 <script>
 import api from '../services/api'
-import { Loading } from '@element-plus/icons-vue'
+import { Loading, Trophy, Select, Medal, Present, Check, CloseBold, User } from '@element-plus/icons-vue'
 
 export default {
   name: 'GameDetails',
-  components: { Loading },
+  components: { 
+    Loading,
+    Trophy,
+    Select,
+    Medal,
+    Present,
+    Check,
+    CloseBold,
+    User
+  },
   data() {
     return {
       game: null,
       loading: true,
       activeTab: 'stats',
       ratings: [],
-      currentUser: null
+      currentUser: null,
+      claiming: false
     }
   },
   computed: {
@@ -254,6 +352,45 @@ export default {
         console.error('加载数据失败:', error)
       } finally {
         this.loading = false
+      }
+    },
+    async handleVote(teamId) {
+      if (!this.currentUser) {
+        alert('请先登录参与竞猜')
+        return
+      }
+      
+      try {
+        await api.predictGame(this.game.game_id, teamId)
+        alert('投票成功')
+        await this.loadData() // 重新加载数据以更新进度条
+      } catch (error) {
+        console.error('投票失败:', error)
+        alert(error.message || '投票失败')
+      }
+    },
+    async handleClaim() {
+      if (this.claiming) return
+      this.claiming = true
+      
+      try {
+        const result = await api.claimReward(this.game.game_id)
+        alert(result.message)
+        this.game.is_claimed = true
+        
+        // 更新本地存储的用户积分
+        if (result.points) {
+          const user = JSON.parse(localStorage.getItem('user'))
+          if (user) {
+            user.points = (user.points || 0) + result.points
+            localStorage.setItem('user', JSON.stringify(user))
+          }
+        }
+      } catch (error) {
+        console.error('领取失败:', error)
+        alert(error.message || '领取失败')
+      } finally {
+        this.claiming = false
       }
     },
     async submitRating(player, stars) {
@@ -350,6 +487,195 @@ export default {
 .status-badge.finished {
   background: rgba(16, 185, 129, 0.2);
   color: #10b981;
+}
+
+/* Prediction Styles */
+.prediction-section {
+  margin-bottom: 20px;
+  padding: 20px;
+}
+
+.prediction-section h3 {
+  color: white;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vote-count {
+  font-size: 0.8em;
+  color: #a0a0a0;
+  font-weight: normal;
+}
+
+.vote-buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.vote-btn {
+  padding: 10px 30px;
+  border-radius: 25px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vote-btn.home-btn {
+  background: rgba(64, 158, 255, 0.2);
+  color: #409EFF;
+  border: 1px solid #409EFF;
+}
+
+.vote-btn.away-btn {
+  background: rgba(245, 108, 108, 0.2);
+  color: #F56C6C;
+  border: 1px solid #F56C6C;
+}
+
+.vote-btn:hover {
+  transform: translateY(-2px);
+}
+
+.vote-btn.active {
+  background: #409EFF;
+  color: white;
+}
+
+.vote-btn.away-btn.active {
+  background: #F56C6C;
+  color: white;
+}
+
+.vs-text {
+  font-weight: bold;
+  color: #a0a0a0;
+}
+
+.prediction-bar-container {
+  margin-top: 15px;
+}
+
+.prediction-bar {
+  height: 24px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  margin-bottom: 8px;
+}
+
+.bar-segment {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  color: white;
+  transition: width 0.5s ease;
+}
+
+.bar-segment.home {
+  background: #409EFF;
+}
+
+.bar-segment.away {
+  background: #F56C6C;
+}
+
+.bar-labels {
+  display: flex;
+  justify-content: space-between;
+  color: #a0a0a0;
+  font-size: 14px;
+}
+
+.bar-labels span.highlight {
+  color: #E6A23C;
+  font-weight: bold;
+}
+
+.prediction-result {
+  margin-top: 15px;
+  text-align: center;
+}
+
+.result-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-weight: bold;
+}
+
+.result-badge.win {
+  background: rgba(103, 194, 58, 0.2);
+  color: #67C23A;
+  border: 1px solid #67C23A;
+}
+
+.result-badge.lose {
+  background: rgba(144, 147, 153, 0.2);
+  color: #909399;
+  border: 1px solid #909399;
+}
+
+.result-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.claim-btn {
+  background: linear-gradient(45deg, #E6A23C, #F56C6C);
+  color: white;
+  border: none;
+  padding: 10px 25px;
+  border-radius: 25px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 15px rgba(230, 162, 60, 0.3);
+  transition: all 0.3s;
+  animation: pulse 2s infinite;
+}
+
+.claim-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(230, 162, 60, 0.4);
+}
+
+.claim-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  animation: none;
+}
+
+.claimed-badge {
+  color: #67C23A;
+  font-size: 0.9em;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
 }
 
 .tabs-container {

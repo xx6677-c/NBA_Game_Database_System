@@ -204,6 +204,86 @@ def update_player(player_id):
         conn.close()
 
 
+@players_bp.route('/<int:player_id>', methods=['GET'])
+def get_player(player_id):
+    """获取单个球员详情"""
+    conn = db_config.get_connection()
+    if not conn:
+        return jsonify({'error': '数据库连接失败'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT p.player_id, p.姓名, p.位置, p.球衣号, p.身高, p.体重, 
+                       p.出生日期, p.国籍, p.当前球队ID, t.名称 as team_name,
+                       p.合同到期, p.薪资, pi.image_id
+                FROM Player p 
+                LEFT JOIN Team t ON p.当前球队ID = t.team_id
+                LEFT JOIN Player_Image pi ON p.player_id = pi.player_id
+                WHERE p.player_id = %s
+            """, (player_id,))
+            
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({'error': '球员不存在'}), 404
+                
+            player = {
+                'player_id': row[0],
+                'name': row[1],
+                'position': row[2],
+                'jersey_number': row[3],
+                'height': row[4],
+                'weight': row[5],
+                'birth_date': row[6].strftime('%Y-%m-%d') if row[6] else None,
+                'nationality': row[7],
+                'current_team_id': row[8],
+                'team_name': row[9],
+                'contract_expiry': row[10].strftime('%Y-%m-%d') if row[10] else None,
+                'salary': float(row[11]) if row[11] else None,
+                'photo_url': f'/api/images/{row[12]}' if row[12] else None
+            }
+
+            # Get average stats
+            cursor.execute("""
+                SELECT 
+                    COUNT(game_id),
+                    AVG(得分),
+                    AVG(篮板),
+                    AVG(助攻),
+                    AVG(抢断),
+                    AVG(盖帽)
+                FROM Player_Game
+                WHERE player_id = %s
+            """, (player_id,))
+            
+            stats_row = cursor.fetchone()
+            if stats_row and stats_row[0] > 0:
+                player['stats'] = {
+                    'games_played': stats_row[0],
+                    'ppg': round(float(stats_row[1]), 1),
+                    'rpg': round(float(stats_row[2]), 1),
+                    'apg': round(float(stats_row[3]), 1),
+                    'spg': round(float(stats_row[4]), 1),
+                    'bpg': round(float(stats_row[5]), 1)
+                }
+            else:
+                player['stats'] = {
+                    'games_played': 0,
+                    'ppg': 0,
+                    'rpg': 0,
+                    'apg': 0,
+                    'spg': 0,
+                    'bpg': 0
+                }
+            
+            return jsonify(player), 200
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
 @players_bp.route('/<int:player_id>', methods=['DELETE'])
 @jwt_required()
 def delete_player(player_id):
@@ -287,3 +367,80 @@ def upload_player_photo(player_id):
         return jsonify({'error': str(e)}), 500
     finally:
         conn.close()
+
+
+@players_bp.route('/<int:player_id>/stats', methods=['GET'])
+def get_player_stats(player_id):
+    """获取球员雷达图数据 (基于真实比赛数据)"""
+    conn = db_config.get_connection()
+    if not conn:
+        return jsonify({'error': '数据库连接失败'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # 1. 获取真实评分
+            cursor.execute("SELECT AVG(分数) FROM Rating WHERE player_id = %s", (player_id,))
+            result = cursor.fetchone()
+            avg_rating = float(result[0]) if result and result[0] is not None else 5.0
+            
+            # 2. 获取比赛数据平均值
+            cursor.execute("""
+                SELECT 
+                    COUNT(game_id),
+                    AVG(得分),
+                    AVG(篮板),
+                    AVG(助攻),
+                    AVG(抢断),
+                    AVG(盖帽),
+                    AVG(上场时间)
+                FROM Player_Game
+                WHERE player_id = %s
+            """, (player_id,))
+            
+            stats_row = cursor.fetchone()
+            
+            # 默认基础值
+            stats = {
+                '进攻': 40,
+                '防守': 40,
+                '篮板': 30,
+                '助攻': 30,
+                '体力': 40,
+                '综合评价': int(avg_rating * 10)
+            }
+            
+            if stats_row and stats_row[0] > 0:
+                # 提取数据 (处理 None)
+                ppg = float(stats_row[1]) if stats_row[1] else 0
+                rpg = float(stats_row[2]) if stats_row[2] else 0
+                apg = float(stats_row[3]) if stats_row[3] else 0
+                spg = float(stats_row[4]) if stats_row[4] else 0
+                bpg = float(stats_row[5]) if stats_row[5] else 0
+                mpg = float(stats_row[6]) if stats_row[6] else 0
+                
+                # 计算各项能力值 (0-100)
+                # 进攻: 基于得分 (基准: 30分=100)
+                stats['进攻'] = min(99, int(40 + (ppg / 30.0) * 60))
+                
+                # 篮板: 基于篮板 (基准: 12个=100)
+                stats['篮板'] = min(99, int(30 + (rpg / 12.0) * 70))
+                
+                # 助攻: 基于助攻 (基准: 10个=100)
+                stats['助攻'] = min(99, int(30 + (apg / 10.0) * 70))
+                
+                # 防守: 基于抢断+盖帽+篮板 (综合计算)
+                # 抢断/盖帽权重高，篮板权重低
+                def_score = (spg * 15) + (bpg * 15) + (rpg * 2)
+                stats['防守'] = min(99, int(40 + def_score))
+                
+                # 体力: 基于上场时间 (基准: 40分钟=100)
+                stats['体力'] = min(99, int(40 + (mpg / 40.0) * 60))
+            
+            return jsonify(stats), 200
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+

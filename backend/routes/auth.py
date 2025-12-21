@@ -130,7 +130,7 @@ def get_current_user():
     try:
         with conn.cursor() as cursor:
             cursor.execute("""
-                SELECT user_id, 用户名, 角色, 注册时间, 最后登录时间, 邮箱, 手机号
+                SELECT user_id, 用户名, 角色, 注册时间, 最后登录时间, 邮箱, 手机号, points
                 FROM User WHERE user_id = %s
             """, (current_user_id,))
             
@@ -144,7 +144,8 @@ def get_current_user():
                     'register_time': user_data[3].strftime('%Y-%m-%d %H:%M') if user_data[3] else None,
                     'last_login': user_data[4].strftime('%Y-%m-%d %H:%M') if user_data[4] else None,
                     'email': user_data[5],
-                    'phone': user_data[6]
+                    'phone': user_data[6],
+                    'points': user_data[7] or 0
                 }), 200
             else:
                 return jsonify({'error': '用户不存在'}), 404
@@ -363,6 +364,53 @@ def delete_account():
                 conn.rollback()
                 raise e
                 
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@auth_bp.route('/me/points-history', methods=['GET'])
+@jwt_required()
+def get_user_points_history():
+    """获取用户积分历史"""
+    current_user_id = get_jwt_identity()
+    
+    conn = db_config.get_connection()
+    if not conn:
+        return jsonify({'error': '数据库连接失败'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # 获取已领取的竞猜奖励记录
+            cursor.execute("""
+                SELECT p.update_time, g.主队ID, g.客队ID, ht.名称 as home_team, at.名称 as away_team, 
+                       g.主队得分, g.客队得分, g.日期
+                FROM Prediction p
+                JOIN Game g ON p.game_id = g.game_id
+                JOIN Team ht ON g.主队ID = ht.team_id
+                JOIN Team at ON g.客队ID = at.team_id
+                WHERE p.user_id = %s AND p.is_claimed = TRUE
+                ORDER BY p.update_time DESC
+            """, (current_user_id,))
+            
+            history = []
+            for row in cursor.fetchall():
+                history.append({
+                    'type': '竞猜奖励',
+                    'points': 100,
+                    'date': row[0].strftime('%Y-%m-%d %H:%M'),
+                    'description': f'竞猜正确：{row[3]} vs {row[4]}',
+                    'game_info': {
+                        'home_team': row[3],
+                        'away_team': row[4],
+                        'score': f'{row[5]}-{row[6]}',
+                        'game_date': row[7].strftime('%Y-%m-%d')
+                    }
+                })
+            
+            return jsonify(history), 200
+            
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
