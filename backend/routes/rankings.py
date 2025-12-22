@@ -1,6 +1,6 @@
 """数据榜单路由"""
 from flask import Blueprint, request, jsonify
-from database.config import DatabaseConfig
+from database.core.config import DatabaseConfig
 
 
 rankings_bp = Blueprint('rankings', __name__)
@@ -20,28 +20,7 @@ def get_team_standings():
     try:
         with conn.cursor() as cursor:
             # 查询每支球队的胜负场次
-            cursor.execute("""
-                SELECT 
-                    t.team_id,
-                    t.名称 as name,
-                    t.城市 as city,
-                    t.分区 as conference,
-                    COUNT(CASE WHEN g.获胜球队ID = t.team_id THEN 1 END) as wins,
-                    COUNT(CASE WHEN g.状态 = '已结束' AND g.获胜球队ID != t.team_id 
-                               AND (g.主队ID = t.team_id OR g.客队ID = t.team_id) THEN 1 END) as losses,
-                    COUNT(CASE WHEN g.状态 = '已结束' 
-                               AND (g.主队ID = t.team_id OR g.客队ID = t.team_id) THEN 1 END) as games_played
-                FROM Team t
-                LEFT JOIN Game g ON (g.主队ID = t.team_id OR g.客队ID = t.team_id) AND g.状态 = '已结束'
-                GROUP BY t.team_id, t.名称, t.城市, t.分区
-                ORDER BY t.分区, 
-                    CASE WHEN COUNT(CASE WHEN g.状态 = '已结束' 
-                                        AND (g.主队ID = t.team_id OR g.客队ID = t.team_id) THEN 1 END) > 0 
-                         THEN COUNT(CASE WHEN g.获胜球队ID = t.team_id THEN 1 END) * 1.0 / 
-                              COUNT(CASE WHEN g.状态 = '已结束' 
-                                        AND (g.主队ID = t.team_id OR g.客队ID = t.team_id) THEN 1 END)
-                         ELSE 0 END DESC
-            """)
+            cursor.callproc('sp_get_team_standings', (None,))
             
             east_teams = []
             west_teams = []
@@ -119,26 +98,7 @@ def get_player_stats_rankings():
     try:
         with conn.cursor() as cursor:
             # 查询球员场均数据
-            cursor.execute(f"""
-                SELECT 
-                    p.player_id,
-                    p.姓名 as name,
-                    p.位置 as position,
-                    t.名称 as team_name,
-                    COUNT(pg.game_id) as games_played,
-                    ROUND(AVG(COALESCE(pg.得分, 0)), 1) as avg_points,
-                    ROUND(AVG(COALESCE(pg.篮板, 0)), 1) as avg_rebounds,
-                    ROUND(AVG(COALESCE(pg.助攻, 0)), 1) as avg_assists,
-                    ROUND(AVG(COALESCE(pg.抢断, 0)), 1) as avg_steals,
-                    ROUND(AVG(COALESCE(pg.盖帽, 0)), 1) as avg_blocks,
-                    ROUND(AVG(COALESCE(pg.上场时间, 0)), 1) as avg_minutes
-                FROM Player p
-                LEFT JOIN Player_Game pg ON p.player_id = pg.player_id
-                LEFT JOIN Team t ON p.当前球队ID = t.team_id
-                GROUP BY p.player_id, p.姓名, p.位置, t.名称
-                ORDER BY AVG(COALESCE(pg.{stat_field}, 0)) DESC, p.player_id
-                LIMIT %s
-            """, (limit,))
+            cursor.callproc('sp_get_player_rankings', (stat_field, limit))
             
             players = []
             for i, row in enumerate(cursor.fetchall(), 1):
@@ -184,31 +144,20 @@ def get_stat_leaders():
             
             # 各项数据的领跑者
             stats = [
-                ('points', '得分', '得分王'),
-                ('rebounds', '篮板', '篮板王'),
-                ('assists', '助攻', '助攻王'),
-                ('steals', '抢断', '抢断王'),
-                ('blocks', '盖帽', '盖帽王')
+                ('points', '得分', '得分王', 5),
+                ('rebounds', '篮板', '篮板王', 6),
+                ('assists', '助攻', '助攻王', 7),
+                ('steals', '抢断', '抢断王', 8),
+                ('blocks', '盖帽', '盖帽王', 9)
             ]
             
-            for stat_key, stat_field, stat_title in stats:
-                cursor.execute(f"""
-                    SELECT 
-                        p.player_id,
-                        p.姓名 as name,
-                        p.位置 as position,
-                        t.名称 as team_name,
-                        COUNT(pg.game_id) as games_played,
-                        ROUND(AVG(COALESCE(pg.{stat_field}, 0)), 1) as avg_stat
-                    FROM Player p
-                    LEFT JOIN Player_Game pg ON p.player_id = pg.player_id
-                    LEFT JOIN Team t ON p.当前球队ID = t.team_id
-                    GROUP BY p.player_id, p.姓名, p.位置, t.名称
-                    ORDER BY AVG(COALESCE(pg.{stat_field}, 0)) DESC, p.player_id
-                    LIMIT 1
-                """)
+            for stat_key, stat_field, stat_title, index in stats:
+                cursor.callproc('sp_get_player_rankings', (stat_field, 1))
                 
                 row = cursor.fetchone()
+                # 清空剩余结果集
+                cursor.nextset()
+                
                 if row:
                     leaders[stat_key] = {
                         'title': stat_title,
@@ -217,7 +166,7 @@ def get_stat_leaders():
                         'position': row[2],
                         'team_name': row[3] or '自由球员',
                         'games_played': row[4],
-                        'avg_value': float(row[5]) if row[5] else 0
+                        'avg_value': float(row[index]) if row[index] else 0
                     }
             
             return jsonify(leaders), 200

@@ -2,7 +2,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from database.config import DatabaseConfig
+from database.core.config import DatabaseConfig
 
 
 comments_bp = Blueprint('comments', __name__)
@@ -22,22 +22,10 @@ def toggle_comment_like(comment_id):
     try:
         with conn.cursor() as cursor:
             if request.method == 'POST':
-                cursor.execute("""
-                    SELECT COUNT(*) FROM Comment_Like 
-                    WHERE user_id = %s AND comment_id = %s
-                """, (current_user_id, comment_id))
+                cursor.callproc('sp_check_comment_like', (current_user_id, comment_id))
                 
                 if cursor.fetchone()[0] == 0:
-                    cursor.execute("""
-                        INSERT INTO Comment_Like (user_id, comment_id) 
-                        VALUES (%s, %s)
-                    """, (current_user_id, comment_id))
-                    
-                    cursor.execute("""
-                        UPDATE Comment 
-                        SET 点赞数 = 点赞数 + 1 
-                        WHERE comment_id = %s
-                    """, (comment_id,))
+                    cursor.callproc('sp_add_comment_like', (current_user_id, comment_id))
                     
                     conn.commit()
                     return jsonify({'message': '点赞成功', 'liked': True})
@@ -45,22 +33,10 @@ def toggle_comment_like(comment_id):
                     return jsonify({'message': '已经点赞过了', 'liked': True})
             
             else:  # DELETE
-                cursor.execute("""
-                    SELECT COUNT(*) FROM Comment_Like 
-                    WHERE user_id = %s AND comment_id = %s
-                """, (current_user_id, comment_id))
+                cursor.callproc('sp_check_comment_like', (current_user_id, comment_id))
                 
                 if cursor.fetchone()[0] > 0:
-                    cursor.execute("""
-                        DELETE FROM Comment_Like 
-                        WHERE user_id = %s AND comment_id = %s
-                    """, (current_user_id, comment_id))
-                    
-                    cursor.execute("""
-                        UPDATE Comment 
-                        SET 点赞数 = 点赞数 - 1 
-                        WHERE comment_id = %s
-                    """, (comment_id,))
+                    cursor.callproc('sp_remove_comment_like', (current_user_id, comment_id))
                     
                     conn.commit()
                     return jsonify({'message': '取消点赞成功', 'liked': False})

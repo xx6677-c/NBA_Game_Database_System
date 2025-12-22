@@ -95,6 +95,32 @@ class ApiService {
   }
 
   /**
+   * 上传头像
+   */
+  async uploadAvatar(file) {
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    const url = `${API_BASE_URL}/images/avatar`
+    const headers = {}
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`
+    }
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: headers,
+      body: formData
+    })
+    
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error || '上传失败')
+    }
+    return data
+  }
+
+  /**
    * 处理未授权错误
    */
   handleUnauthorized() {

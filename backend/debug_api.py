@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from database.config import DatabaseConfig
+from database.core.config import DatabaseConfig
 
 def test_game_detail(game_id):
     print(f"Testing get_game_detail for game_id={game_id}")

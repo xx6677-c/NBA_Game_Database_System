@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, create_access_token, get_jwt_identity, get_jwt
 from datetime import datetime
 
-from database.config import DatabaseConfig
+from database.core.config import DatabaseConfig
 from utils.auth import hash_password, check_password
 from middlewares.jwt_config import jwt_blacklist
 
@@ -49,10 +49,7 @@ def register():
             
             # 创建新用户
             hashed_password = hash_password(password)
-            cursor.execute("""
-                INSERT INTO User (用户名, 密码, 角色, 注册时间) 
-                VALUES (%s, %s, %s, %s)
-            """, (username, hashed_password, role, datetime.now()))
+            cursor.callproc('sp_register_user', (username, hashed_password, role, datetime.now()))
             
             conn.commit()
             return jsonify({'message': '注册成功'}), 201
@@ -79,11 +76,10 @@ def login():
     
     try:
         with conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT user_id, 密码, 角色 FROM User WHERE 用户名 = %s
-            """, (username,))
+            cursor.callproc('sp_login_user', (username,))
             
             user = cursor.fetchone()
+            # user: (user_id, password_hash, role)
             if not user or not check_password(password, user[1]):
                 return jsonify({'error': '用户名或密码错误'}), 401
             
@@ -91,8 +87,7 @@ def login():
             access_token = create_access_token(identity=str(user[0]))
             
             # 更新最后登录时间
-            cursor.execute("UPDATE User SET 最后登录时间 = %s WHERE user_id = %s", 
-                         (datetime.now(), user[0]))
+            cursor.callproc('sp_update_last_login', (user[0], datetime.now()))
             conn.commit()
             
             return jsonify({
@@ -129,10 +124,7 @@ def get_current_user():
     
     try:
         with conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT user_id, 用户名, 角色, 注册时间, 最后登录时间, 邮箱, 手机号, points
-                FROM User WHERE user_id = %s
-            """, (current_user_id,))
+            cursor.callproc('sp_get_user_profile', (current_user_id,))
             
             user_data = cursor.fetchone()
             
@@ -145,7 +137,8 @@ def get_current_user():
                     'last_login': user_data[4].strftime('%Y-%m-%d %H:%M') if user_data[4] else None,
                     'email': user_data[5],
                     'phone': user_data[6],
-                    'points': user_data[7] or 0
+                    'points': user_data[7] or 0,
+                    'avatar_url': f'/api/images/{user_data[8]}' if user_data[8] else None
                 }), 200
             else:
                 return jsonify({'error': '用户不存在'}), 404
@@ -172,10 +165,7 @@ def update_user_profile():
     
     try:
         with conn.cursor() as cursor:
-            cursor.execute("""
-                UPDATE User SET 邮箱 = %s, 手机号 = %s 
-                WHERE user_id = %s
-            """, (email, phone, current_user_id))
+            cursor.callproc('sp_update_user_profile', (current_user_id, email, phone))
             
             conn.commit()
             return jsonify({'message': '个人信息更新成功'}), 200
@@ -198,16 +188,7 @@ def get_user_posts():
     
     try:
         with conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT p.post_id, p.标题, p.内容, p.创建时间, p.浏览量, p.点赞数,
-                       g.赛季, ht.名称 as home_team, at.名称 as away_team
-                FROM Post p
-                LEFT JOIN Game g ON p.game_id = g.game_id
-                LEFT JOIN Team ht ON g.主队ID = ht.team_id
-                LEFT JOIN Team at ON g.客队ID = at.team_id
-                WHERE p.user_id = %s
-                ORDER BY p.创建时间 DESC
-            """, (current_user_id,))
+            cursor.callproc('sp_get_user_posts', (current_user_id,))
             
             posts = []
             for row in cursor.fetchall():
@@ -243,19 +224,7 @@ def get_user_ratings():
     
     try:
         with conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT r.user_id, r.player_id, r.game_id, r.分数, r.创建时间,
-                       p.姓名 as player_name, p.位置, t.名称 as team_name,
-                       g.赛季, g.日期, ht.名称 as home_team, at.名称 as away_team
-                FROM Rating r
-                JOIN Player p ON r.player_id = p.player_id
-                LEFT JOIN Team t ON p.当前球队ID = t.team_id
-                JOIN Game g ON r.game_id = g.game_id
-                JOIN Team ht ON g.主队ID = ht.team_id
-                JOIN Team at ON g.客队ID = at.team_id
-                WHERE r.user_id = %s
-                ORDER BY r.创建时间 DESC
-            """, (current_user_id,))
+            cursor.callproc('sp_get_user_ratings', (current_user_id,))
             
             ratings = []
             for row in cursor.fetchall():
@@ -299,7 +268,7 @@ def verify_password():
     
     try:
         with conn.cursor() as cursor:
-            cursor.execute("SELECT 密码 FROM User WHERE user_id = %s", (current_user_id,))
+            cursor.callproc('sp_get_user_password_hash', (current_user_id,))
             user_data = cursor.fetchone()
             
             if not user_data:
@@ -334,7 +303,7 @@ def delete_account():
     try:
         with conn.cursor() as cursor:
             # 验证密码
-            cursor.execute("SELECT 密码 FROM User WHERE user_id = %s", (current_user_id,))
+            cursor.callproc('sp_get_user_password_hash', (current_user_id,))
             user_data = cursor.fetchone()
             
             if not user_data:
@@ -348,9 +317,7 @@ def delete_account():
             
             try:
                 # 删除用户相关数据
-                cursor.execute("DELETE FROM Rating WHERE user_id = %s", (current_user_id,))
-                cursor.execute("DELETE FROM Post WHERE user_id = %s", (current_user_id,))
-                cursor.execute("DELETE FROM User WHERE user_id = %s", (current_user_id,))
+                cursor.callproc('sp_delete_account', (current_user_id,))
                 
                 conn.commit()
                 
@@ -383,16 +350,7 @@ def get_user_points_history():
     try:
         with conn.cursor() as cursor:
             # 获取已领取的竞猜奖励记录
-            cursor.execute("""
-                SELECT p.update_time, g.主队ID, g.客队ID, ht.名称 as home_team, at.名称 as away_team, 
-                       g.主队得分, g.客队得分, g.日期
-                FROM Prediction p
-                JOIN Game g ON p.game_id = g.game_id
-                JOIN Team ht ON g.主队ID = ht.team_id
-                JOIN Team at ON g.客队ID = at.team_id
-                WHERE p.user_id = %s AND p.is_claimed = TRUE
-                ORDER BY p.update_time DESC
-            """, (current_user_id,))
+            cursor.callproc('sp_get_user_points_history', (current_user_id,))
             
             history = []
             for row in cursor.fetchall():

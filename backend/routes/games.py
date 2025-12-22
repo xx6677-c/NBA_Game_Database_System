@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
-from database.config import DatabaseConfig
+from database.core.config import DatabaseConfig
 from utils.permissions import check_admin_permission
 
 
@@ -24,39 +24,7 @@ def get_games():
     
     try:
         with conn.cursor() as cursor:
-            query = """
-                SELECT g.game_id, g.赛季, g.日期, g.状态, g.主队得分, g.客队得分,
-                       ht.名称 as home_team, at.名称 as away_team,
-                       wt.名称 as winner_team, g.场馆,
-                       htl.image_id as home_logo_id, atl.image_id as away_logo_id,
-                       g.主队ID, g.客队ID
-                FROM Game g
-                JOIN Team ht ON g.主队ID = ht.team_id
-                JOIN Team at ON g.客队ID = at.team_id
-                LEFT JOIN Team wt ON g.获胜球队ID = wt.team_id
-                LEFT JOIN Team_Logo htl ON ht.team_id = htl.team_id
-                LEFT JOIN Team_Logo atl ON at.team_id = atl.team_id
-            """
-            
-            params = []
-            conditions = []
-            
-            if date_from:
-                conditions.append("g.日期 >= %s")
-                params.append(date_from)
-            if date_to:
-                conditions.append("g.日期 <= %s")
-                params.append(date_to)
-            if team_id:
-                conditions.append("(g.主队ID = %s OR g.客队ID = %s)")
-                params.extend([team_id, team_id])
-            
-            if conditions:
-                query += " WHERE " + " AND ".join(conditions)
-            
-            query += " ORDER BY g.日期 DESC"
-            
-            cursor.execute(query, params)
+            cursor.callproc('sp_get_games', (date_from, date_to, team_id))
             
             games = []
             for row in cursor.fetchall():
@@ -98,12 +66,7 @@ def claim_reward(game_id):
     try:
         with conn.cursor() as cursor:
             # 1. 检查比赛状态和竞猜结果
-            cursor.execute("""
-                SELECT g.状态, g.获胜球队ID, p.predicted_team_id, p.is_claimed
-                FROM Prediction p
-                JOIN Game g ON p.game_id = g.game_id
-                WHERE p.game_id = %s AND p.user_id = %s
-            """, (game_id, current_user_id))
+            cursor.callproc('sp_check_prediction_status', (game_id, current_user_id))
             
             result = cursor.fetchone()
             
@@ -125,8 +88,7 @@ def claim_reward(game_id):
             # 奖励 100 积分
             reward_points = 100
             
-            cursor.execute("UPDATE User SET points = points + %s WHERE user_id = %s", (reward_points, current_user_id))
-            cursor.execute("UPDATE Prediction SET is_claimed = TRUE WHERE game_id = %s AND user_id = %s", (game_id, current_user_id))
+            cursor.callproc('sp_claim_reward', (game_id, current_user_id, reward_points))
             
             conn.commit()
             
@@ -157,7 +119,7 @@ def predict_game(game_id):
     try:
         with conn.cursor() as cursor:
             # 1. 检查比赛状态
-            cursor.execute("SELECT 状态, 日期 FROM Game WHERE game_id = %s", (game_id,))
+            cursor.callproc('sp_check_game_status', (game_id,))
             game = cursor.fetchone()
             
             if not game:
@@ -167,12 +129,7 @@ def predict_game(game_id):
                 return jsonify({'error': '比赛已开始或已结束，无法投票'}), 400
                 
             # 2. 插入或更新投票
-            # 使用 ON DUPLICATE KEY UPDATE 实现"可随意更改"
-            cursor.execute("""
-                INSERT INTO Prediction (user_id, game_id, predicted_team_id)
-                VALUES (%s, %s, %s)
-                ON DUPLICATE KEY UPDATE predicted_team_id = VALUES(predicted_team_id)
-            """, (current_user_id, game_id, team_id))
+            cursor.callproc('sp_predict_game', (current_user_id, game_id, team_id))
             
             conn.commit()
             return jsonify({'message': '投票成功'}), 200
@@ -196,17 +153,7 @@ def get_game_detail(game_id):
     try:
         with conn.cursor() as cursor:
             # 获取比赛基本信息
-            cursor.execute("""
-                SELECT g.game_id, g.赛季, g.日期, g.状态, g.主队得分, g.客队得分,
-                       g.主队ID, g.客队ID,
-                       ht.名称 as home_team, at.名称 as away_team,
-                       wt.名称 as winner_team, g.场馆, g.获胜球队ID
-                FROM Game g
-                JOIN Team ht ON g.主队ID = ht.team_id
-                JOIN Team at ON g.客队ID = at.team_id
-                LEFT JOIN Team wt ON g.获胜球队ID = wt.team_id
-                WHERE g.game_id = %s
-            """, (game_id,))
+            cursor.callproc('sp_get_game_detail', (game_id,))
             
             game = cursor.fetchone()
             if not game:
@@ -230,12 +177,7 @@ def get_game_detail(game_id):
 
             # 获取竞猜数据
             # 1. 统计双方支持数
-            cursor.execute("""
-                SELECT predicted_team_id, COUNT(*) 
-                FROM Prediction 
-                WHERE game_id = %s 
-                GROUP BY predicted_team_id
-            """, (game_id,))
+            cursor.callproc('sp_get_game_prediction_stats', (game_id,))
             
             predictions = cursor.fetchall()
             home_votes = 0
@@ -258,11 +200,7 @@ def get_game_detail(game_id):
             
             # 2. 获取当前用户投票状态
             if current_user_id:
-                cursor.execute("""
-                    SELECT predicted_team_id, is_claimed
-                    FROM Prediction 
-                    WHERE game_id = %s AND user_id = %s
-                """, (game_id, current_user_id))
+                cursor.callproc('sp_get_user_prediction', (game_id, current_user_id))
                 user_vote = cursor.fetchone()
                 if user_vote:
                     game_data['user_prediction'] = user_vote[0]
@@ -273,16 +211,7 @@ def get_game_detail(game_id):
             
             # 如果比赛已结束，获取球员比赛数据
             if game[3] == '已结束':
-                cursor.execute("""
-                    SELECT pg.player_id, pg.上场时间, pg.得分, pg.篮板, pg.助攻, 
-                           pg.抢断, pg.盖帽, pg.失误, pg.犯规, pg.正负值,
-                           p.姓名, p.位置, p.球衣号, t.名称 as team_name, t.team_id
-                    FROM Player_Game pg
-                    JOIN Player p ON pg.player_id = p.player_id
-                    JOIN Team t ON p.当前球队ID = t.team_id
-                    WHERE pg.game_id = %s
-                    ORDER BY t.名称, p.球衣号
-                """, (game_id,))
+                cursor.callproc('sp_get_game_player_stats', (game_id,))
                 
                 player_stats = []
                 for row in cursor.fetchall():
@@ -327,20 +256,7 @@ def get_game_ratings(game_id):
     try:
         with conn.cursor() as cursor:
             # 获取所有参与比赛的球员及其平均评分
-            query = """
-                SELECT p.player_id, p.姓名, p.当前球队ID, t.名称 as team_name,
-                       AVG(r.分数) as avg_rating, COUNT(r.user_id) as rating_count,
-                       pi.image_id
-                FROM Player_Game pg
-                JOIN Player p ON pg.player_id = p.player_id
-                JOIN Team t ON p.当前球队ID = t.team_id
-                LEFT JOIN Rating r ON p.player_id = r.player_id AND r.game_id = pg.game_id
-                LEFT JOIN Player_Image pi ON p.player_id = pi.player_id
-                WHERE pg.game_id = %s
-                GROUP BY p.player_id
-                ORDER BY t.team_id, p.球衣号
-            """
-            cursor.execute(query, (game_id,))
+            cursor.callproc('sp_get_game_players_with_ratings', (game_id,))
             
             players = []
             for row in cursor.fetchall():
@@ -357,10 +273,10 @@ def get_game_ratings(game_id):
                 
                 # 如果用户已登录，获取用户的评分
                 if current_user_id:
-                    cursor.execute("""
-                        SELECT 分数 FROM Rating 
-                        WHERE user_id = %s AND player_id = %s AND game_id = %s
-                    """, (current_user_id, row[0], game_id))
+                    # 注意：这里在循环中调用存储过程可能效率不高，但为了保持逻辑一致性先这样做
+                    # 更好的做法是一次性获取所有评分，或者在 sp_get_game_players_with_ratings 中传入 user_id
+                    # 但目前的 sp_get_game_players_with_ratings 没有 user_id 参数
+                    cursor.callproc('sp_get_user_player_rating', (current_user_id, row[0], game_id))
                     user_rating = cursor.fetchone()
                     if user_rating:
                         player_data['user_rating'] = float(user_rating[0])
@@ -397,11 +313,7 @@ def submit_rating(game_id):
     try:
         with conn.cursor() as cursor:
             # 检查是否已经评分
-            cursor.execute("""
-                INSERT INTO Rating (user_id, player_id, game_id, 分数)
-                VALUES (%s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE 分数 = %s, 创建时间 = CURRENT_TIMESTAMP
-            """, (current_user_id, player_id, game_id, rating, rating))
+            cursor.callproc('sp_upsert_rating', (current_user_id, player_id, game_id, rating))
             
             conn.commit()
             return jsonify({'message': '评分成功'}), 200
@@ -426,15 +338,7 @@ def get_player_game_detail(game_id, player_id):
     try:
         with conn.cursor() as cursor:
             # 1. 获取球员本场数据
-            cursor.execute("""
-                SELECT pg.上场时间, pg.得分, pg.篮板, pg.助攻, 
-                       pg.抢断, pg.盖帽, pg.失误, pg.犯规, pg.正负值,
-                       p.姓名, p.位置, p.球衣号, t.名称 as team_name, t.team_id
-                FROM Player_Game pg
-                JOIN Player p ON pg.player_id = p.player_id
-                JOIN Team t ON p.当前球队ID = t.team_id
-                WHERE pg.game_id = %s AND pg.player_id = %s
-            """, (game_id, player_id))
+            cursor.callproc('sp_get_player_game_stats_single', (game_id, player_id))
             
             stats_row = cursor.fetchone()
             if not stats_row:
@@ -458,30 +362,18 @@ def get_player_game_detail(game_id, player_id):
             }
             
             # 2. 获取评分信息
-            cursor.execute("""
-                SELECT AVG(分数), COUNT(*) FROM Rating
-                WHERE game_id = %s AND player_id = %s
-            """, (game_id, player_id))
+            cursor.callproc('sp_get_player_rating_summary', (game_id, player_id))
             rating_row = cursor.fetchone()
             stats['avg_rating'] = float(rating_row[0]) if rating_row[0] else 0
             stats['rating_count'] = rating_row[1]
             
             if current_user_id:
-                cursor.execute("""
-                    SELECT 分数 FROM Rating
-                    WHERE user_id = %s AND game_id = %s AND player_id = %s
-                """, (current_user_id, game_id, player_id))
+                cursor.callproc('sp_get_user_player_rating', (current_user_id, player_id, game_id))
                 user_rating = cursor.fetchone()
                 stats['user_rating'] = float(user_rating[0]) if user_rating else None
             
             # 3. 获取评论
-            cursor.execute("""
-                SELECT c.comment_id, c.内容, c.创建时间, u.用户名, u.user_id
-                FROM Comment c
-                JOIN User u ON c.user_id = u.user_id
-                WHERE c.game_id = %s AND c.player_id = %s
-                ORDER BY c.创建时间 DESC
-            """, (game_id, player_id))
+            cursor.callproc('sp_get_player_game_comments', (game_id, player_id))
             
             comments = []
             for row in cursor.fetchall():
@@ -521,10 +413,7 @@ def submit_player_comment(game_id, player_id):
         
     try:
         with conn.cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO Comment (user_id, player_id, game_id, 内容)
-                VALUES (%s, %s, %s, %s)
-            """, (current_user_id, player_id, game_id, content))
+            cursor.callproc('sp_create_player_comment', (current_user_id, game_id, player_id, content, datetime.now()))
             
             conn.commit()
             return jsonify({'message': '评论成功'}), 200
@@ -559,12 +448,15 @@ def create_game():
     if not all([season, date, home_team_id, away_team_id]):
         return jsonify({'error': '赛季、日期、主队和客队ID是必填字段'}), 400
     
+    # 主队和客队不能相同 - 数据库触发器 trg_game_check_teams 会再次检查
     if home_team_id == away_team_id:
         return jsonify({'error': '主队和客队不能相同'}), 400
     
     if status == '已结束':
         if home_score is None or away_score is None:
             return jsonify({'error': '已结束的比赛必须提供比分'}), 400
+        if int(home_score) == int(away_score):
+            return jsonify({'error': '比赛结束时不能平局'}), 400
         if not player_data:
             return jsonify({'error': '已结束的比赛必须提供球员比赛数据'}), 400
     
@@ -576,22 +468,19 @@ def create_game():
         with conn.cursor() as cursor:
             conn.autocommit = False
             
-            winner_team_id = None
-            if status == '已结束':
-                if home_score > away_score:
-                    winner_team_id = home_team_id
-                elif away_score > home_score:
-                    winner_team_id = away_team_id
-            
+            # 获胜球队ID由触发器 trg_game_update_winner 自动计算
+            # 调用存储过程创建比赛
+            # sp_create_game 有9个参数，最后一个是OUT参数 p_game_id
+            # 使用 execute 代替 callproc 以确保正确获取 OUT 参数
+            cursor.execute("SET @p_game_id = 0")
             cursor.execute("""
-                INSERT INTO Game (赛季, 日期, 主队ID, 客队ID, 主队得分, 客队得分, 状态, 获胜球队ID, 场馆)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (season, date, home_team_id, away_team_id, home_score, away_score, status, winner_team_id, venue))
+                CALL sp_create_game(%s, %s, %s, %s, %s, %s, %s, %s, @p_game_id)
+            """, (season, date, home_team_id, away_team_id, 
+                  home_score, away_score, status, venue))
             
-            game_id = cursor.lastrowid
-            
-            cursor.execute("INSERT INTO Team_Game (team_id, game_id, 主客类型) VALUES (%s, %s, '主场')", (home_team_id, game_id))
-            cursor.execute("INSERT INTO Team_Game (team_id, game_id, 主客类型) VALUES (%s, %s, '客场')", (away_team_id, game_id))
+            cursor.execute("SELECT @p_game_id")
+            result = cursor.fetchone()
+            game_id = result[0]
             
             if status == '已结束' and player_data:
                 for player_stat in player_data:
@@ -599,10 +488,7 @@ def create_game():
                     if not player_id:
                         continue
                     
-                    cursor.execute("""
-                        INSERT INTO Player_Game (player_id, game_id, 上场时间, 得分, 篮板, 助攻, 抢断, 盖帽, 失误, 犯规, 正负值)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
+                    cursor.callproc('sp_add_player_game_stat', (
                         player_id, game_id,
                         player_stat.get('上场时间', 0),
                         player_stat.get('得分', 0),
@@ -614,16 +500,6 @@ def create_game():
                         player_stat.get('犯规', 0),
                         player_stat.get('正负值')
                     ))
-            
-            # 记录管理员操作
-            try:
-                cursor.execute("""
-                    INSERT INTO Admin_Insert (user_id, game_id) 
-                    VALUES (%s, %s)
-                    ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), 操作时间 = CURRENT_TIMESTAMP
-                """, (int(current_user_id), game_id))
-            except Exception as e:
-                print(f"Warning: Failed to log admin insert in create_game: {e}")
             
             conn.commit()
             return jsonify({'message': '比赛创建成功', 'game_id': game_id}), 201
@@ -663,7 +539,7 @@ def update_game(game_id):
         with conn.cursor() as cursor:
             conn.autocommit = False
             
-            cursor.execute("SELECT game_id, 状态 FROM Game WHERE game_id = %s", (game_id,))
+            cursor.callproc('sp_check_game_status', (game_id,))
             existing_game = cursor.fetchone()
             if not existing_game:
                 return jsonify({'error': '比赛不存在'}), 404
@@ -671,58 +547,20 @@ def update_game(game_id):
             if status == '已结束':
                 if home_score is None or away_score is None:
                     return jsonify({'error': '已结束的比赛必须提供比分'}), 400
+                if int(home_score) == int(away_score):
+                    return jsonify({'error': '比赛结束时不能平局'}), 400
                 if not player_data:
                     return jsonify({'error': '已结束的比赛必须提供球员比赛数据'}), 400
             
-            winner_team_id = None
-            if status == '已结束':
-                if home_score > away_score:
-                    winner_team_id = home_team_id
-                elif away_score > home_score:
-                    winner_team_id = away_team_id
+            # 获胜球队ID由触发器 trg_game_update_winner 自动计算
             
-            update_fields = []
-            update_values = []
-            
-            if season is not None:
-                update_fields.append("赛季 = %s")
-                update_values.append(season)
-            if date is not None:
-                update_fields.append("日期 = %s")
-                update_values.append(date)
-            if home_team_id is not None:
-                update_fields.append("主队ID = %s")
-                update_values.append(home_team_id)
-            if away_team_id is not None:
-                update_fields.append("客队ID = %s")
-                update_values.append(away_team_id)
-            if status is not None:
-                update_fields.append("状态 = %s")
-                update_values.append(status)
-            if home_score is not None:
-                update_fields.append("主队得分 = %s")
-                update_values.append(home_score)
-            if away_score is not None:
-                update_fields.append("客队得分 = %s")
-                update_values.append(away_score)
-            if venue is not None:
-                update_fields.append("场馆 = %s")
-                update_values.append(venue)
-            if winner_team_id is not None:
-                update_fields.append("获胜球队ID = %s")
-                update_values.append(winner_team_id)
-            
-            if update_fields:
-                update_values.append(game_id)
-                cursor.execute(f"UPDATE Game SET {', '.join(update_fields)} WHERE game_id = %s", update_values)
-            
-            if home_team_id is not None:
-                cursor.execute("UPDATE Team_Game SET team_id = %s WHERE game_id = %s AND 主客类型 = '主场'", (home_team_id, game_id))
-            if away_team_id is not None:
-                cursor.execute("UPDATE Team_Game SET team_id = %s WHERE game_id = %s AND 主客类型 = '客场'", (away_team_id, game_id))
+            cursor.callproc('sp_update_game', (
+                game_id, season, date, home_team_id, away_team_id,
+                status, home_score, away_score, venue
+            ))
             
             if status == '已结束' and player_data:
-                cursor.execute("DELETE FROM Player_Game WHERE game_id = %s", (game_id,))
+                cursor.callproc('sp_delete_player_game_stats', (game_id,))
                 
                 for player_stat in player_data:
                     player_id = player_stat.get('player_id')
@@ -733,10 +571,7 @@ def update_game(game_id):
                     if plus_minus == '' or plus_minus is None:
                         plus_minus = None
                     
-                    cursor.execute("""
-                        INSERT INTO Player_Game (player_id, game_id, 上场时间, 得分, 篮板, 助攻, 抢断, 盖帽, 失误, 犯规, 正负值)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
+                    cursor.callproc('sp_add_player_game_stat', (
                         player_id, game_id,
                         float(player_stat.get('上场时间', 0)),
                         int(player_stat.get('得分', 0)),
@@ -748,17 +583,6 @@ def update_game(game_id):
                         int(player_stat.get('犯规', 0)),
                         plus_minus
                     ))
-            
-            # 记录管理员操作
-            if status == '已结束' and existing_game[1] != '已结束':
-                try:
-                    cursor.execute("""
-                        INSERT INTO Admin_Insert (user_id, game_id) 
-                        VALUES (%s, %s)
-                        ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), 操作时间 = CURRENT_TIMESTAMP
-                    """, (int(current_user_id), game_id))
-                except Exception as e:
-                    print(f"Warning: Failed to log admin insert in update_game: {e}")
             
             conn.commit()
             return jsonify({'message': '比赛更新成功'}), 200
@@ -787,17 +611,11 @@ def delete_game(game_id):
         with conn.cursor() as cursor:
             conn.autocommit = False
             
-            cursor.execute("SELECT game_id FROM Game WHERE game_id = %s", (game_id,))
+            cursor.callproc('sp_check_game_status', (game_id,))
             if not cursor.fetchone():
                 return jsonify({'error': '比赛不存在'}), 404
             
-            cursor.execute("DELETE FROM Rating WHERE game_id = %s", (game_id,))
-            cursor.execute("DELETE FROM Player_Game WHERE game_id = %s", (game_id,))
-            cursor.execute("DELETE FROM Team_Game WHERE game_id = %s", (game_id,))
-            cursor.execute("DELETE FROM Admin_Insert WHERE game_id = %s", (game_id,))
-            cursor.execute("DELETE FROM Post WHERE game_id = %s", (game_id,))
-            cursor.execute("DELETE FROM Comment WHERE game_id = %s", (game_id,))
-            cursor.execute("DELETE FROM Game WHERE game_id = %s", (game_id,))
+            cursor.callproc('sp_delete_game', (game_id,))
             
             conn.commit()
             return jsonify({'message': '比赛删除成功'}), 200

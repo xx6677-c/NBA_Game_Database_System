@@ -2,7 +2,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from database.config import DatabaseConfig
+from database.core.config import DatabaseConfig
 from utils.permissions import check_admin_permission
 
 
@@ -21,27 +21,7 @@ def get_players():
     
     try:
         with conn.cursor() as cursor:
-            if team_id:
-                cursor.execute("""
-                    SELECT p.player_id, p.姓名, p.位置, p.球衣号, p.身高, p.体重, 
-                           p.出生日期, p.国籍, p.当前球队ID, t.名称 as team_name,
-                           p.合同到期, p.薪资, pi.image_id
-                    FROM Player p 
-                    LEFT JOIN Team t ON p.当前球队ID = t.team_id
-                    LEFT JOIN Player_Image pi ON p.player_id = pi.player_id
-                    WHERE p.当前球队ID = %s
-                    ORDER BY p.球衣号
-                """, (team_id,))
-            else:
-                cursor.execute("""
-                    SELECT p.player_id, p.姓名, p.位置, p.球衣号, p.身高, p.体重, 
-                           p.出生日期, p.国籍, p.当前球队ID, t.名称 as team_name,
-                           p.合同到期, p.薪资, pi.image_id
-                    FROM Player p 
-                    LEFT JOIN Team t ON p.当前球队ID = t.team_id
-                    LEFT JOIN Player_Image pi ON p.player_id = pi.player_id
-                    ORDER BY t.名称, p.球衣号
-                """)
+            cursor.callproc('sp_get_players', (team_id,))
             
             players = []
             for row in cursor.fetchall():
@@ -120,12 +100,11 @@ def create_player():
                 if cursor.fetchone():
                     return jsonify({'error': '该球队中已有球员使用此球衣号'}), 400
             
-            cursor.execute("""
-                INSERT INTO Player (姓名, 位置, 球衣号, 身高, 体重, 出生日期, 
-                                  国籍, 当前球队ID, 合同到期, 薪资) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (name, position, jersey_number, height, weight, 
-                  birth_date, nationality, current_team_id, contract_expiry, salary))
+            # sp_create_player 有11个参数，最后一个是OUT参数 p_player_id
+            args = cursor.callproc('sp_create_player', (
+                name, position, jersey_number, height, weight, 
+                birth_date, nationality, current_team_id, contract_expiry, salary, 0
+            ))
             
             conn.commit()
             return jsonify({'message': '球员创建成功'}), 201
@@ -187,13 +166,10 @@ def update_player(player_id):
                 if cursor.fetchone():
                     return jsonify({'error': '该球队中已有其他球员使用此球衣号'}), 400
             
-            cursor.execute("""
-                UPDATE Player 
-                SET 姓名 = %s, 位置 = %s, 球衣号 = %s, 身高 = %s, 体重 = %s, 
-                    出生日期 = %s, 国籍 = %s, 当前球队ID = %s, 合同到期 = %s, 薪资 = %s
-                WHERE player_id = %s
-            """, (name, position, jersey_number, height, weight, 
-                  birth_date, nationality, current_team_id, contract_expiry, salary, player_id))
+            cursor.callproc('sp_update_player', (
+                player_id, name, position, jersey_number, height, weight, 
+                birth_date, nationality, current_team_id, contract_expiry, salary
+            ))
             
             conn.commit()
             return jsonify({'message': '球员更新成功'}), 200
@@ -213,15 +189,7 @@ def get_player(player_id):
     
     try:
         with conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT p.player_id, p.姓名, p.位置, p.球衣号, p.身高, p.体重, 
-                       p.出生日期, p.国籍, p.当前球队ID, t.名称 as team_name,
-                       p.合同到期, p.薪资, pi.image_id
-                FROM Player p 
-                LEFT JOIN Team t ON p.当前球队ID = t.team_id
-                LEFT JOIN Player_Image pi ON p.player_id = pi.player_id
-                WHERE p.player_id = %s
-            """, (player_id,))
+            cursor.callproc('sp_get_player_detail', (player_id,))
             
             row = cursor.fetchone()
             if not row:
@@ -244,27 +212,20 @@ def get_player(player_id):
             }
 
             # Get average stats
-            cursor.execute("""
-                SELECT 
-                    COUNT(game_id),
-                    AVG(得分),
-                    AVG(篮板),
-                    AVG(助攻),
-                    AVG(抢断),
-                    AVG(盖帽)
-                FROM Player_Game
-                WHERE player_id = %s
-            """, (player_id,))
+            cursor.callproc('sp_get_player_career_stats', (player_id,))
             
             stats_row = cursor.fetchone()
+            # sp_get_player_career_stats returns:
+            # games_played, avg_minutes, avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks, ...
+            
             if stats_row and stats_row[0] > 0:
                 player['stats'] = {
                     'games_played': stats_row[0],
-                    'ppg': round(float(stats_row[1]), 1),
-                    'rpg': round(float(stats_row[2]), 1),
-                    'apg': round(float(stats_row[3]), 1),
-                    'spg': round(float(stats_row[4]), 1),
-                    'bpg': round(float(stats_row[5]), 1)
+                    'ppg': round(float(stats_row[2]), 1) if stats_row[2] else 0,
+                    'rpg': round(float(stats_row[3]), 1) if stats_row[3] else 0,
+                    'apg': round(float(stats_row[4]), 1) if stats_row[4] else 0,
+                    'spg': round(float(stats_row[5]), 1) if stats_row[5] else 0,
+                    'bpg': round(float(stats_row[6]), 1) if stats_row[6] else 0
                 }
             else:
                 player['stats'] = {
@@ -299,11 +260,11 @@ def delete_player(player_id):
     
     try:
         with conn.cursor() as cursor:
-            cursor.execute("SELECT player_id FROM Player WHERE player_id = %s", (player_id,))
+            cursor.callproc('sp_get_player_detail', (player_id,))
             if not cursor.fetchone():
                 return jsonify({'error': '球员不存在'}), 404
             
-            cursor.execute("DELETE FROM Player WHERE player_id = %s", (player_id,))
+            cursor.callproc('sp_delete_player', (player_id,))
             conn.commit()
             return jsonify({'message': '球员删除成功'}), 200
             
@@ -341,9 +302,9 @@ def upload_player_photo(player_id):
         with conn.cursor() as cursor:
             # 1. Insert into Image table
             cursor.execute("""
-                INSERT INTO Image (user_id, 名称, 数据, MIME类型)
-                VALUES (%s, %s, %s, %s)
-            """, (current_user_id, filename, file_data, mime_type))
+                INSERT INTO Image (名称, 数据, MIME类型)
+                VALUES (%s, %s, %s)
+            """, (filename, file_data, mime_type))
             image_id = cursor.lastrowid
             
             # 2. Insert/Update Player_Image table
@@ -384,19 +345,7 @@ def get_player_stats(player_id):
             avg_rating = float(result[0]) if result and result[0] is not None else 5.0
             
             # 2. 获取比赛数据平均值
-            cursor.execute("""
-                SELECT 
-                    COUNT(game_id),
-                    AVG(得分),
-                    AVG(篮板),
-                    AVG(助攻),
-                    AVG(抢断),
-                    AVG(盖帽),
-                    AVG(上场时间)
-                FROM Player_Game
-                WHERE player_id = %s
-            """, (player_id,))
-            
+            cursor.callproc('sp_get_player_career_stats', (player_id,))
             stats_row = cursor.fetchone()
             
             # 默认基础值
@@ -411,12 +360,16 @@ def get_player_stats(player_id):
             
             if stats_row and stats_row[0] > 0:
                 # 提取数据 (处理 None)
-                ppg = float(stats_row[1]) if stats_row[1] else 0
-                rpg = float(stats_row[2]) if stats_row[2] else 0
-                apg = float(stats_row[3]) if stats_row[3] else 0
-                spg = float(stats_row[4]) if stats_row[4] else 0
-                bpg = float(stats_row[5]) if stats_row[5] else 0
-                mpg = float(stats_row[6]) if stats_row[6] else 0
+                # sp_get_player_career_stats returns:
+                # 0:games_played, 1:avg_minutes, 2:avg_points, 3:avg_rebounds, 
+                # 4:avg_assists, 5:avg_steals, 6:avg_blocks
+                
+                mpg = float(stats_row[1]) if stats_row[1] else 0
+                ppg = float(stats_row[2]) if stats_row[2] else 0
+                rpg = float(stats_row[3]) if stats_row[3] else 0
+                apg = float(stats_row[4]) if stats_row[4] else 0
+                spg = float(stats_row[5]) if stats_row[5] else 0
+                bpg = float(stats_row[6]) if stats_row[6] else 0
                 
                 # 计算各项能力值 (0-100)
                 # 进攻: 基于得分 (基准: 30分=100)

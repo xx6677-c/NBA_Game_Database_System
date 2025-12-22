@@ -102,7 +102,6 @@ CREATE TABLE IF NOT EXISTS Rating (
 -- 8. 图片表
 CREATE TABLE IF NOT EXISTS Image (
     image_id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
     名称 VARCHAR(50) NOT NULL,
     数据 LONGBLOB NOT NULL,
     MIME类型 VARCHAR(50) NOT NULL,
@@ -169,16 +168,6 @@ CREATE TABLE IF NOT EXISTS Team_Logo (
     image_id INT NOT NULL UNIQUE,
     FOREIGN KEY (team_id) REFERENCES Team(team_id) ON DELETE CASCADE,
     FOREIGN KEY (image_id) REFERENCES Image(image_id) ON DELETE CASCADE
-);
-
--- 16. 管理员-比赛数据录入关系表
-CREATE TABLE IF NOT EXISTS Admin_Insert (
-    user_id INT NOT NULL,
-    game_id INT NOT NULL,
-    操作时间 DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (game_id),
-    FOREIGN KEY (user_id) REFERENCES User(user_id),
-    FOREIGN KEY (game_id) REFERENCES Game(game_id)
 );
 
 -- 插入初始数据

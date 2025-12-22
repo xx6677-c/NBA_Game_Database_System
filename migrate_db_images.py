@@ -4,7 +4,7 @@ import os
 # Add backend to path
 sys.path.append(os.path.join(os.getcwd(), 'backend'))
 
-from backend.database.config import DatabaseConfig
+from backend.database.core.config import DatabaseConfig
 
 def migrate_images():
     db_config = DatabaseConfig()

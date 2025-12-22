@@ -1,5 +1,5 @@
 """权限验证工具函数"""
-from database.config import DatabaseConfig
+from database.core.config import DatabaseConfig
 
 
 db_config = DatabaseConfig()

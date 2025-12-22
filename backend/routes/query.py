@@ -2,7 +2,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from database.config import DatabaseConfig
+from database.core.config import DatabaseConfig
 from utils.permissions import check_analyst_permission
 
 

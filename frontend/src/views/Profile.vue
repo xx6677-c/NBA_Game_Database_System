@@ -17,45 +17,59 @@
           </button>
         </div>
         
-        <div class="user-info">
-          <div class="info-item">
-            <label>用户名</label>
-            <div class="info-value">{{ userInfo.username }}</div>
+        <div class="user-info-container">
+          <div class="avatar-wrapper">
+             <div class="avatar-container">
+                <img v-if="userInfo.avatar_url" :src="userInfo.avatar_url" class="avatar-img">
+                <div v-else class="avatar-placeholder"><el-icon><User /></el-icon></div>
+                <div class="avatar-overlay" @click="triggerFileInput">
+                  <el-icon><Camera /></el-icon>
+                </div>
+                <input type="file" ref="fileInput" @change="handleAvatarUpload" accept="image/*" style="display: none">
+             </div>
+             <div class="avatar-tip" v-if="editMode">点击更换头像</div>
           </div>
-          <div class="info-item">
-            <label>角色</label>
-            <div class="info-value">
-              <span class="role-badge">{{ userInfo.role }}</span>
+
+          <div class="user-info">
+            <div class="info-item">
+              <label>用户名</label>
+              <div class="info-value">{{ userInfo.username }}</div>
             </div>
-          </div>
-          <div class="info-item">
-            <label>注册时间</label>
-            <div class="info-value">{{ userInfo.register_time }}</div>
-          </div>
-          <div class="info-item">
-            <label>最后登录</label>
-            <div class="info-value">{{ userInfo.last_login || '首次登录' }}</div>
-          </div>
-          
-          <!-- 可编辑信息 -->
-          <div class="info-item">
-            <label>邮箱</label>
-            <div class="info-value">
-              <input v-if="editMode" v-model="editForm.email" type="email" class="glass-input sm-input">
-              <span v-else>{{ userInfo.email || '未设置' }}</span>
+            <div class="info-item">
+              <label>角色</label>
+              <div class="info-value">
+                <span class="role-badge">{{ userInfo.role }}</span>
+              </div>
             </div>
-          </div>
-          <div class="info-item">
-            <label>手机号</label>
-            <div class="info-value">
-              <input v-if="editMode" v-model="editForm.phone" type="tel" class="glass-input sm-input">
-              <span v-else>{{ userInfo.phone || '未设置' }}</span>
+            <div class="info-item">
+              <label>注册时间</label>
+              <div class="info-value">{{ userInfo.register_time }}</div>
             </div>
-          </div>
-          
-          <div v-if="editMode" class="edit-actions">
-            <button @click="saveProfile" class="glass-btn primary-btn">保存修改</button>
-            <button @click="cancelEdit" class="glass-btn">取消</button>
+            <div class="info-item">
+              <label>最后登录</label>
+              <div class="info-value">{{ userInfo.last_login || '首次登录' }}</div>
+            </div>
+            
+            <!-- 可编辑信息 -->
+            <div class="info-item">
+              <label>邮箱</label>
+              <div class="info-value">
+                <input v-if="editMode" v-model="editForm.email" type="email" class="glass-input sm-input">
+                <span v-else>{{ userInfo.email || '未设置' }}</span>
+              </div>
+            </div>
+            <div class="info-item">
+              <label>手机号</label>
+              <div class="info-value">
+                <input v-if="editMode" v-model="editForm.phone" type="tel" class="glass-input sm-input">
+                <span v-else>{{ userInfo.phone || '未设置' }}</span>
+              </div>
+            </div>
+            
+            <div v-if="editMode" class="edit-actions">
+              <button @click="saveProfile" class="glass-btn primary-btn">保存修改</button>
+              <button @click="cancelEdit" class="glass-btn">取消</button>
+            </div>
           </div>
         </div>
       </div>
@@ -395,7 +409,7 @@ import api from '../services/api'
 import { 
   User, Edit, Document, Star, View, Pointer, DocumentRemove, StarFilled, 
   SwitchButton, Delete, Warning, Lock, Trophy, Close, ArrowDown, ArrowUp,
-  Present, Files
+  Present, Files, Camera
 } from '@element-plus/icons-vue'
 
 export default {
@@ -403,7 +417,7 @@ export default {
   components: {
     User, Edit, Document, Star, View, Pointer, DocumentRemove, StarFilled, 
     SwitchButton, Delete, Warning, Lock, Trophy, Close, ArrowDown, ArrowUp,
-    Present, Files
+    Present, Files, Camera
   },
   data() {
     return {
@@ -444,6 +458,35 @@ export default {
     await this.loadUserData()
   },
   methods: {
+    triggerFileInput() {
+      this.$refs.fileInput.click()
+    },
+    async handleAvatarUpload(event) {
+      const file = event.target.files[0]
+      if (!file) return
+      
+      // 验证文件类型
+      if (!file.type.startsWith('image/')) {
+        alert('请选择图片文件')
+        return
+      }
+      
+      // 验证文件大小 (例如 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        alert('图片大小不能超过 2MB')
+        return
+      }
+      
+      try {
+        const result = await api.uploadAvatar(file)
+        // 更新用户信息中的头像URL
+        this.userInfo.avatar_url = result.avatar_url
+        // alert('头像上传成功')
+      } catch (error) {
+        console.error('头像上传失败:', error)
+        alert('头像上传失败: ' + error.message)
+      }
+    },
     async loadUserData() {
       try {
         // 加载用户信息
@@ -1175,23 +1218,94 @@ export default {
 }
 
 /* Shop Styles */
+.redeem-section {
+  padding: 15px 20px;
+}
+
+.redeem-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.redeem-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.points-balance {
+  font-size: 0.9rem;
+  color: var(--primary-color);
+  font-weight: bold;
+}
+
 .redeem-content {
   display: flex;
   justify-content: center;
-  padding: 20px 0;
+  padding: 5px 0;
+}
+
+.redeem-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 10px 15px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  width: 100%;
+  max-width: 100%;
+}
+
+.item-icon {
+  font-size: 20px;
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 215, 0, 0.1);
+  padding: 8px;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.item-info {
+  flex: 1;
+  text-align: left;
+}
+
+.item-info h4 {
+  margin: 0 0 2px 0;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.item-info p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.redeem-btn {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  min-width: auto;
+  height: 32px;
 }
 
 .shop-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 15px;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  width: 100%;
-  max-width: 300px;
+  display: none;
 }
 
 .shop-icon {
@@ -1377,6 +1491,88 @@ export default {
   margin: 0;
   color: rgba(255, 255, 255, 0.8);
 }
+
+/* Avatar Styles */
+.user-info-container {
+  display: flex;
+  gap: var(--spacing-xl);
+  align-items: flex-start;
+}
+
+.avatar-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.avatar-container {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid var(--accent-color);
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 4rem;
+  color: var(--text-secondary);
+}
+
+.avatar-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.3s;
+  color: white;
+  font-size: 2rem;
+}
+
+.avatar-container:hover .avatar-overlay {
+  opacity: 1;
+}
+
+.avatar-tip {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.user-info {
+  flex: 1;
+}
+
+@media (max-width: 768px) {
+  .user-info-container {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .user-info {
+    width: 100%;
+  }
+}
+
 
 @keyframes popIn {
   0% { transform: scale(0.5); opacity: 0; }

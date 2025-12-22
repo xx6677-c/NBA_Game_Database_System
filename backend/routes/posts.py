@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
-from database.config import DatabaseConfig
+from database.core.config import DatabaseConfig
 
 
 posts_bp = Blueprint('posts', __name__)
@@ -21,33 +21,7 @@ def get_posts():
     
     try:
         with conn.cursor() as cursor:
-            if game_id:
-                cursor.execute("""
-                    SELECT p.post_id, p.标题, p.内容, p.创建时间, p.浏览量, p.点赞数,
-                           u.用户名, g.赛季, ht.名称 as home_team, at.名称 as away_team,
-                           (SELECT GROUP_CONCAT(image_id) FROM Post_Image WHERE post_id = p.post_id) as image_ids,
-                           p.user_id
-                    FROM Post p
-                    JOIN User u ON p.user_id = u.user_id
-                    LEFT JOIN Game g ON p.game_id = g.game_id
-                    LEFT JOIN Team ht ON g.主队ID = ht.team_id
-                    LEFT JOIN Team at ON g.客队ID = at.team_id
-                    WHERE p.game_id = %s
-                    ORDER BY p.创建时间 DESC
-                """, (game_id,))
-            else:
-                cursor.execute("""
-                    SELECT p.post_id, p.标题, p.内容, p.创建时间, p.浏览量, p.点赞数,
-                           u.用户名, g.赛季, ht.名称 as home_team, at.名称 as away_team,
-                           (SELECT GROUP_CONCAT(image_id) FROM Post_Image WHERE post_id = p.post_id) as image_ids,
-                           p.user_id
-                    FROM Post p
-                    JOIN User u ON p.user_id = u.user_id
-                    LEFT JOIN Game g ON p.game_id = g.game_id
-                    LEFT JOIN Team ht ON g.主队ID = ht.team_id
-                    LEFT JOIN Team at ON g.客队ID = at.team_id
-                    ORDER BY p.创建时间 DESC
-                """)
+            cursor.callproc('sp_get_posts', (game_id,))
             
             posts = []
             for row in cursor.fetchall():
@@ -113,19 +87,20 @@ def create_post():
     
     try:
         with conn.cursor() as cursor:
+            # sp_create_post 有6个参数，最后一个是OUT参数 p_post_id
+            # 使用 execute 代替 callproc 以确保正确获取 OUT 参数
+            cursor.execute("SET @p_post_id = 0")
             cursor.execute("""
-                INSERT INTO Post (user_id, 标题, 内容, game_id, 创建时间)
-                VALUES (%s, %s, %s, %s, %s)
+                CALL sp_create_post(%s, %s, %s, %s, %s, @p_post_id)
             """, (current_user_id, title, content, game_id, datetime.now()))
             
-            post_id = cursor.lastrowid
+            cursor.execute("SELECT @p_post_id")
+            result = cursor.fetchone()
+            post_id = result[0]
             
             if image_ids:
-                values = [(post_id, img_id) for img_id in image_ids]
-                cursor.executemany("""
-                    INSERT INTO Post_Image (post_id, image_id)
-                    VALUES (%s, %s)
-                """, values)
+                for img_id in image_ids:
+                    cursor.callproc('sp_add_post_image', (post_id, img_id))
             
             conn.commit()
             return jsonify({'message': '帖子创建成功'}), 201
@@ -145,11 +120,7 @@ def increment_post_view(post_id):
     
     try:
         with conn.cursor() as cursor:
-            cursor.execute("""
-                UPDATE Post 
-                SET 浏览量 = 浏览量 + 1 
-                WHERE post_id = %s
-            """, (post_id,))
+            cursor.callproc('sp_increment_post_view', (post_id,))
             
             conn.commit()
             return jsonify({'message': '浏览量增加成功'})
@@ -173,22 +144,12 @@ def toggle_post_like(post_id):
     try:
         with conn.cursor() as cursor:
             if request.method == 'POST':
-                cursor.execute("""
-                    SELECT COUNT(*) FROM Post_Like 
-                    WHERE user_id = %s AND post_id = %s
-                """, (current_user_id, post_id))
+                cursor.callproc('sp_check_post_like', (current_user_id, post_id))
                 
                 if cursor.fetchone()[0] == 0:
-                    cursor.execute("""
-                        INSERT INTO Post_Like (user_id, post_id) 
-                        VALUES (%s, %s)
-                    """, (current_user_id, post_id))
+                    cursor.callproc('sp_add_post_like', (current_user_id, post_id))
                     
-                    cursor.execute("""
-                        UPDATE Post 
-                        SET 点赞数 = 点赞数 + 1 
-                        WHERE post_id = %s
-                    """, (post_id,))
+                    # 点赞数由触发器 trg_post_like_increment 自动更新
                     
                     conn.commit()
                     return jsonify({'message': '点赞成功', 'liked': True})
@@ -196,22 +157,12 @@ def toggle_post_like(post_id):
                     return jsonify({'message': '已经点赞过了', 'liked': True})
             
             else:  # DELETE
-                cursor.execute("""
-                    SELECT COUNT(*) FROM Post_Like 
-                    WHERE user_id = %s AND post_id = %s
-                """, (current_user_id, post_id))
+                cursor.callproc('sp_check_post_like', (current_user_id, post_id))
                 
                 if cursor.fetchone()[0] > 0:
-                    cursor.execute("""
-                        DELETE FROM Post_Like 
-                        WHERE user_id = %s AND post_id = %s
-                    """, (current_user_id, post_id))
+                    cursor.callproc('sp_remove_post_like', (current_user_id, post_id))
                     
-                    cursor.execute("""
-                        UPDATE Post 
-                        SET 点赞数 = 点赞数 - 1 
-                        WHERE post_id = %s
-                    """, (post_id,))
+                    # 点赞数由触发器 trg_post_like_decrement 自动更新
                     
                     conn.commit()
                     return jsonify({'message': '取消点赞成功', 'liked': False})
@@ -236,10 +187,7 @@ def get_post_like_status(post_id):
     
     try:
         with conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT COUNT(*) FROM Post_Like 
-                WHERE user_id = %s AND post_id = %s
-            """, (current_user_id, post_id))
+            cursor.callproc('sp_check_post_like', (current_user_id, post_id))
             
             liked = cursor.fetchone()[0] > 0
             return jsonify({'liked': liked})
@@ -259,13 +207,7 @@ def get_post_comments(post_id):
     
     try:
         with conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT c.comment_id, c.内容, c.创建时间, u.用户名, u.user_id
-                FROM Comment c
-                JOIN User u ON c.user_id = u.user_id
-                WHERE c.post_id = %s
-                ORDER BY c.创建时间 ASC
-            """, (post_id,))
+            cursor.callproc('sp_get_post_comments', (post_id,))
             
             comments = []
             for row in cursor.fetchall():
@@ -303,10 +245,7 @@ def create_post_comment(post_id):
     
     try:
         with conn.cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO Comment (user_id, post_id, 内容, 创建时间)
-                VALUES (%s, %s, %s, %s)
-            """, (current_user_id, post_id, content, datetime.now()))
+            cursor.callproc('sp_create_post_comment', (current_user_id, post_id, content, datetime.now()))
             
             conn.commit()
             return jsonify({'message': '评论发表成功'}), 201
@@ -376,23 +315,7 @@ def delete_post(post_id):
                 return jsonify({'error': '无权删除此帖子'}), 403
             
             # 4. 执行删除
-            # 删除关联图片关系
-            cursor.execute("DELETE FROM Post_Image WHERE post_id = %s", (post_id,))
-            
-            # 删除关联评论（及其点赞，如果有级联）
-            # 先删除评论的点赞（如果没有级联）
-            cursor.execute("""
-                DELETE FROM Comment_Like 
-                WHERE comment_id IN (SELECT comment_id FROM Comment WHERE post_id = %s)
-            """, (post_id,))
-            
-            cursor.execute("DELETE FROM Comment WHERE post_id = %s", (post_id,))
-            
-            # 删除帖子点赞
-            cursor.execute("DELETE FROM Post_Like WHERE post_id = %s", (post_id,))
-            
-            # 删除帖子
-            cursor.execute("DELETE FROM Post WHERE post_id = %s", (post_id,))
+            cursor.callproc('sp_delete_post', (post_id,))
             
             conn.commit()
             return jsonify({'message': '帖子删除成功'}), 200

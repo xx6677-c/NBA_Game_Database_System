@@ -2,7 +2,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from database.config import DatabaseConfig
+from database.core.config import DatabaseConfig
 from utils.permissions import check_admin_permission
 
 
@@ -19,12 +19,7 @@ def get_teams():
     
     try:
         with conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT t.team_id, t.名称, t.城市, t.场馆, t.分区, t.成立年份, tl.image_id
-                FROM Team t
-                LEFT JOIN Team_Logo tl ON t.team_id = tl.team_id
-                ORDER BY t.名称
-            """)
+            cursor.callproc('sp_get_all_teams')
             
             teams = []
             for row in cursor.fetchall():
@@ -75,9 +70,11 @@ def create_team():
             if cursor.fetchone():
                 return jsonify({'error': '球队名称已存在'}), 400
             
+            # sp_create_team 有6个参数，最后一个是OUT参数 p_team_id
+            # 使用 execute 代替 callproc 以确保正确获取 OUT 参数
+            cursor.execute("SET @p_team_id = 0")
             cursor.execute("""
-                INSERT INTO Team (名称, 城市, 场馆, 分区, 成立年份) 
-                VALUES (%s, %s, %s, %s, %s)
+                CALL sp_create_team(%s, %s, %s, %s, %s, @p_team_id)
             """, (name, city, arena, conference, founded_year))
             
             conn.commit()
@@ -122,11 +119,7 @@ def update_team(team_id):
             if cursor.fetchone():
                 return jsonify({'error': '球队名称已存在'}), 400
             
-            cursor.execute("""
-                UPDATE Team 
-                SET 名称 = %s, 城市 = %s, 场馆 = %s, 分区 = %s, 成立年份 = %s
-                WHERE team_id = %s
-            """, (name, city, arena, conference, founded_year, team_id))
+            cursor.callproc('sp_update_team', (team_id, name, city, arena, conference, founded_year))
             
             conn.commit()
             return jsonify({'message': '球队更新成功'}), 200
@@ -156,7 +149,7 @@ def delete_team(team_id):
             if not cursor.fetchone():
                 return jsonify({'error': '球队不存在'}), 404
             
-            cursor.execute("DELETE FROM Team WHERE team_id = %s", (team_id,))
+            cursor.callproc('sp_delete_team', (team_id,))
             conn.commit()
             return jsonify({'message': '球队删除成功'}), 200
             
@@ -208,9 +201,9 @@ def upload_team_logo(team_id):
 
                 # 2. 插入图片到 Image 表
                 cursor.execute("""
-                    INSERT INTO Image (user_id, 名称, 数据, MIME类型)
-                    VALUES (%s, %s, %s, %s)
-                """, (current_user_id, filename, file_data, mime_type))
+                    INSERT INTO Image (名称, 数据, MIME类型)
+                    VALUES (%s, %s, %s)
+                """, (filename, file_data, mime_type))
                 
                 image_id = cursor.lastrowid
                 
