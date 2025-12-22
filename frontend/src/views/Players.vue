@@ -55,9 +55,9 @@
         </div>
 
         <div class="card-actions">
-          <button @click="showPlayerModal('view', player)" class="glass-btn sm-btn">
-            <el-icon><User /></el-icon> 查看
-          </button>
+          <router-link :to="`/players/${player.player_id}`" class="glass-btn sm-btn">
+            <el-icon><User /></el-icon> 详情
+          </router-link>
           <router-link :to="player.current_team_id ? `/games?team_id=${player.current_team_id}` : '/games'" class="glass-btn sm-btn">
             <el-icon><Basketball /></el-icon> 比赛
           </router-link>

@@ -444,3 +444,105 @@ def get_player_stats(player_id):
         conn.close()
 
 
+@players_bp.route('/<int:player_id>/details', methods=['GET'])
+def get_player_details(player_id):
+    """获取球员详细统计数据 (用于详情页)"""
+    conn = db_config.get_connection()
+    if not conn:
+        return jsonify({'error': '数据库连接失败'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # 1. 获取球员基本信息
+            cursor.execute("""
+                SELECT p.姓名, p.位置, p.球衣号, p.身高, p.体重, p.国籍, 
+                       t.名称 as team_name, pi.image_id, p.当前球队ID
+                FROM Player p 
+                LEFT JOIN Team t ON p.当前球队ID = t.team_id
+                LEFT JOIN Player_Image pi ON p.player_id = pi.player_id
+                WHERE p.player_id = %s
+            """, (player_id,))
+            player_info = cursor.fetchone()
+            
+            if not player_info:
+                return jsonify({'error': '球员不存在'}), 404
+                
+            player_data = {
+                'name': player_info[0],
+                'position': player_info[1],
+                'jersey_number': player_info[2],
+                'height': float(player_info[3]) if player_info[3] else None,
+                'weight': float(player_info[4]) if player_info[4] else None,
+                'nationality': player_info[5],
+                'team_name': player_info[6],
+                'photo_url': f'/api/images/{player_info[7]}' if player_info[7] else None,
+                'team_id': player_info[8]
+            }
+            
+            # 2. 获取比赛数据
+            # 简单的对手判断逻辑：如果主队ID不是球员当前球队ID，则主队是对手，否则客队是对手
+            cursor.execute("""
+                SELECT 
+                    g.日期, 
+                    CASE 
+                        WHEN g.主队ID = %s THEN t_away.名称 
+                        ELSE t_home.名称 
+                    END as opponent,
+                    pg.得分, pg.篮板, pg.助攻, pg.抢断, pg.盖帽, pg.上场时间, pg.正负值,
+                    g.game_id
+                FROM Player_Game pg
+                JOIN Game g ON pg.game_id = g.game_id
+                JOIN Team t_home ON g.主队ID = t_home.team_id
+                JOIN Team t_away ON g.客队ID = t_away.team_id
+                WHERE pg.player_id = %s AND g.状态 = '已结束' AND pg.上场时间 > 0
+                ORDER BY g.日期
+            """, (player_data['team_id'], player_id))
+            
+            games = []
+            total_stats = {'points': 0, 'rebounds': 0, 'assists': 0, 'steals': 0, 'blocks': 0, 'count': 0}
+            
+            for row in cursor.fetchall():
+                games.append({
+                    'date': row[0].strftime('%Y-%m-%d'),
+                    'opponent': row[1],
+                    'points': row[2],
+                    'rebounds': row[3],
+                    'assists': row[4],
+                    'steals': row[5],
+                    'blocks': row[6],
+                    'minutes': float(row[7]),
+                    'plus_minus': row[8],
+                    'game_id': row[9]
+                })
+                total_stats['points'] += row[2]
+                total_stats['rebounds'] += row[3]
+                total_stats['assists'] += row[4]
+                total_stats['steals'] += row[5]
+                total_stats['blocks'] += row[6]
+                total_stats['count'] += 1
+            
+            # 计算平均数据用于雷达图
+            averages = {}
+            if total_stats['count'] > 0:
+                count = total_stats['count']
+                averages = {
+                    'points': round(total_stats['points'] / count, 1),
+                    'rebounds': round(total_stats['rebounds'] / count, 1),
+                    'assists': round(total_stats['assists'] / count, 1),
+                    'steals': round(total_stats['steals'] / count, 1),
+                    'blocks': round(total_stats['blocks'] / count, 1)
+                }
+            
+            return jsonify({
+                'player': player_data,
+                'games': games,
+                'averages': averages
+            })
+            
+    except Exception as e:
+        print(f"Error getting player stats: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+

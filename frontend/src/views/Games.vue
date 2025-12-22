@@ -371,7 +371,7 @@ export default {
       this.resetForm()
       this.showModal = true
     },
-    openEditModal(game) {
+    async openEditModal(game) {
       this.isEditing = true
       this.gameForm = {
         ...game,
@@ -379,6 +379,41 @@ export default {
         player_data: []
       }
       this.showModal = true
+
+      // 如果比赛已结束，加载详细数据
+      if (game.status === '已结束') {
+        try {
+          const detail = await api.getGameDetail(game.game_id)
+          if (detail.player_stats && detail.player_stats.length > 0) {
+            // 1. 构建 playerTemplate
+            this.playerTemplate = detail.player_stats.map(p => ({
+              player_id: p.player_id,
+              name: p.player_name,
+              team_name: p.team_name,
+              jersey_number: p.jersey_number,
+              current_team_id: p.team_id
+            }))
+            
+            // 2. 填充 playerStats
+            this.playerStats = {}
+            detail.player_stats.forEach(p => {
+              this.playerStats[p.player_id] = {
+                上场时间: p.playing_time,
+                得分: p.points,
+                篮板: p.rebounds,
+                助攻: p.assists,
+                抢断: p.steals,
+                盖帽: p.blocks,
+                失误: p.turnovers,
+                犯规: p.fouls,
+                正负值: p.plus_minus
+              }
+            })
+          }
+        } catch (error) {
+          console.error('加载比赛详情失败:', error)
+        }
+      }
     },
     closeModal() {
       this.showModal = false

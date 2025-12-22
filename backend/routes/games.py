@@ -721,7 +721,7 @@ def update_game(game_id):
             if away_team_id is not None:
                 cursor.execute("UPDATE Team_Game SET team_id = %s WHERE game_id = %s AND 主客类型 = '客场'", (away_team_id, game_id))
             
-            if status == '已结束' and player_data and existing_game[1] != '已结束':
+            if status == '已结束' and player_data:
                 cursor.execute("DELETE FROM Player_Game WHERE game_id = %s", (game_id,))
                 
                 for player_stat in player_data:

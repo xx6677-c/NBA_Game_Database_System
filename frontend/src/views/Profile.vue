@@ -1286,30 +1286,21 @@ export default {
 
 .card-name {
   position: absolute;
-  top: 61%;
+  top: 62%;
   left: 50%;
   transform: translateX(-50%);
   width: 80%;
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   font-weight: 900;
-  color: #D4AF37; /* Dark Gold */
+  font-style: normal;
+  color: #e3d664e4; /* Bright Brass/Gold */
   text-align: center;
-  text-shadow: 
-    2px 2px 0 #000, 
-    -1px -1px 0 #000, 
-    1px -1px 0 #000, 
-    -1px 1px 0 #000, 
-    1px 1px 0 #000,
-    0 0 15px rgba(255, 215, 0, 0.8), 0 0 25px rgba(255, 215, 0, 0.4);
+    
   letter-spacing: 1px;
-  font-family: "Microsoft YaHei", sans-serif;
+  font-family: "Brush Script MT", "Segoe Script", "Lucida Handwriting", cursive;
   line-height: 1.2;
   z-index: 2;
-  
-  /* Background to hide original text */
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 70%, rgba(0,0,0,0) 100%);
-  padding: 5px 10px;
-  border-radius: 20px;
+
 }
 
 .card-details {
@@ -1318,12 +1309,7 @@ export default {
   left: 10%;
   width: 80%;
   height: 17.5%;
-  
-  background: linear-gradient(to bottom, #a8a8a8 0%, #696969 50%, #a8a8a8 100%);
-  border-radius: 6px;
-  border: 1px solid #5a5959;
-  box-shadow: inset 0 1px 0 rgb(182, 181, 181), 0 2px 4px rgba(0,0,0,0.8);
-  
+ 
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1333,7 +1319,7 @@ export default {
 
 .card-team {
   font-size: 1.1rem;
-  font-weight: 800;
+  font-weight: 600;
   color: #f0f0f0;
   text-shadow: 0 1px 2px rgba(0,0,0,0.8);
   margin-bottom: 2px;
