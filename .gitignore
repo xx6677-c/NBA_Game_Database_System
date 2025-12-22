@@ -48,7 +48,13 @@ logs/
 
 # 个人开发文件（可选，取消注释以忽略）
 进度检查/
+
+# 文档文件
+*.pdf
+*.docx
 需要修改的提示词.txt
 my.html
 execute_db_update.py
 execute_sample_likes.py
+
+
