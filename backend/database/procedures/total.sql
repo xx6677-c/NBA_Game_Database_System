@@ -230,6 +230,7 @@ CREATE TABLE IF NOT EXISTS Team_Logo (
 -- 3. 索引定义
 -- ==========================================
 
+-- 现有索引
 CREATE INDEX idx_game_date ON Game(日期);
 CREATE INDEX idx_player_team ON Player(当前球队ID);
 CREATE INDEX idx_post_game ON Post(game_id);
@@ -239,6 +240,39 @@ CREATE INDEX idx_post_like_user ON Post_Like(user_id);
 CREATE INDEX idx_post_like_post ON Post_Like(post_id);
 CREATE INDEX idx_comment_like_user ON Comment_Like(user_id);
 CREATE INDEX idx_comment_like_comment ON Comment_Like(comment_id);
+
+-- 新增性能优化索引
+-- 用户表
+CREATE INDEX idx_user_role ON User(角色);
+
+-- 球员表
+CREATE INDEX idx_player_name ON Player(姓名);
+CREATE INDEX idx_player_position ON Player(位置);
+
+-- 比赛表
+CREATE INDEX idx_game_season ON Game(赛季);
+CREATE INDEX idx_game_status ON Game(状态);
+CREATE INDEX idx_game_home_team ON Game(主队ID);
+CREATE INDEX idx_game_away_team ON Game(客队ID);
+
+-- 帖子表
+CREATE INDEX idx_post_user ON Post(user_id);
+CREATE INDEX idx_post_created ON Post(创建时间);
+CREATE INDEX idx_post_likes ON Post(点赞数);
+
+-- 评论表
+CREATE INDEX idx_comment_user ON Comment(user_id);
+CREATE INDEX idx_comment_created ON Comment(创建时间);
+
+-- 球员比赛数据表
+CREATE INDEX idx_pg_points ON Player_Game(得分);
+CREATE INDEX idx_pg_rebounds ON Player_Game(篮板);
+CREATE INDEX idx_pg_assists ON Player_Game(助攻);
+CREATE INDEX idx_pg_game_id ON Player_Game(game_id);
+
+-- 竞猜表
+CREATE INDEX idx_prediction_user ON Prediction(user_id);
+CREATE INDEX idx_prediction_game ON Prediction(game_id);
 
 -- ==========================================
 -- 4. 初始数据插入
