@@ -57,7 +57,8 @@
                 <div 
                   v-for="game in finishedGames" 
                   :key="game.game_id" 
-                  class="game-card finished"
+                  class="game-card finished clickable"
+                  @click="goToGameDetails(game.game_id)"
                 >
                   <div class="game-layout">
                     <div class="team-logo-side">
@@ -111,7 +112,8 @@
                 <div 
                   v-for="game in upcomingGames" 
                   :key="game.game_id" 
-                  class="game-card upcoming"
+                  class="game-card upcoming clickable"
+                  @click="goToGameDetails(game.game_id)"
                 >
                   <div class="game-layout">
                     <div class="team-logo-side">
@@ -289,6 +291,9 @@ export default {
     goToPost(postId) {
       this.$router.push(`/posts?id=${postId}`)
     },
+    goToGameDetails(gameId) {
+      this.$router.push(`/games?game_id=${gameId}`)
+    },
     showComingSoon(feature) {
       this.comingSoonFeature = feature
       this.showComingSoonModal = true
@@ -414,6 +419,10 @@ export default {
   padding: 0.75rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
   transition: all 0.2s ease;
+}
+
+.game-card.clickable {
+  cursor: pointer;
 }
 
 .game-card:hover {

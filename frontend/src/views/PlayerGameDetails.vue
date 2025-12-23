@@ -20,7 +20,10 @@
         
         <div class="player-profile">
           <div class="avatar-large">
-            <img src="/images/default-avatar.png" alt="avatar" @error="handleImageError">
+            <img v-if="stats.photo_url" :src="stats.photo_url" alt="avatar" @error="handleImageError">
+            <div v-else class="avatar-placeholder">
+              <el-icon><User /></el-icon>
+            </div>
           </div>
           <div class="profile-info">
             <h1>{{ stats.player_name }}</h1>
@@ -119,11 +122,11 @@
 
 <script>
 import api from '../services/api'
-import { Loading, ArrowLeft } from '@element-plus/icons-vue'
+import { Loading, ArrowLeft, User } from '@element-plus/icons-vue'
 
 export default {
   name: 'PlayerGameDetails',
-  components: { Loading, ArrowLeft },
+  components: { Loading, ArrowLeft, User },
   data() {
     return {
       stats: null,
@@ -243,6 +246,19 @@ export default {
   height: 100px;
   border-radius: 50%;
   object-fit: cover;
+  border: 3px solid var(--accent-color);
+}
+
+.avatar-large .avatar-placeholder {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  color: var(--text-secondary);
   border: 3px solid var(--accent-color);
 }
 

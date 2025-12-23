@@ -38,7 +38,7 @@
     </div>
 
     <div class="games-list">
-      <div v-for="game in games" :key="game.game_id" class="glass-card game-card">
+      <div v-for="game in games" :key="game.game_id" :id="`game-${game.game_id}`" class="glass-card game-card">
         <div class="card-header">
           <div class="season-badge">{{ game.season }} 赛季</div>
           <span class="status-badge" :class="game.status === '已结束' ? 'finished' : 'upcoming'">
@@ -81,7 +81,7 @@
             <el-icon><ChatDotRound /></el-icon> 讨论
           </router-link>
           <button @click="viewGameDetails(game)" class="glass-btn sm-btn secondary">
-            <el-icon><View /></el-icon> 详情
+            <el-icon><View /></el-icon> 数据统计/评分
           </button>
           <div v-if="isAdmin" class="admin-actions">
             <button @click="openEditModal(game)" class="glass-btn icon-only warning">
@@ -319,6 +319,19 @@ export default {
     }
     
     await Promise.all([this.loadTeams(), this.loadGames()])
+    
+    // 从查询参数获取game_id并滚动到对应比赛
+    const gameId = this.$route.query.game_id
+    if (gameId) {
+      this.$nextTick(() => {
+        this.scrollToGame(gameId)
+      })
+    } else {
+      // 没有指定game_id时，滚动到最近结束的比赛
+      this.$nextTick(() => {
+        this.scrollToFirstFinishedGame()
+      })
+    }
   },
   methods: {
     async getCurrentUser() {
@@ -362,6 +375,27 @@ export default {
         team_id: ''
       }
       this.loadGames()
+    },
+    scrollToGame(gameId) {
+      const element = document.getElementById(`game-${gameId}`)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        // 添加高亮效果
+        element.classList.add('highlight-game')
+        setTimeout(() => {
+          element.classList.remove('highlight-game')
+        }, 2000)
+      }
+    },
+    scrollToFirstFinishedGame() {
+      // 找到第一个已结束的比赛
+      const finishedGame = this.games.find(game => game.status === '已结束')
+      if (finishedGame) {
+        const element = document.getElementById(`game-${finishedGame.game_id}`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }
     },
     viewGameDetails(game) {
       this.$router.push(`/games/${game.game_id}`)
@@ -641,6 +675,27 @@ export default {
   transition: all 0.3s ease;
   padding: var(--spacing-sm) var(--spacing-md);
   gap: var(--spacing-md);
+}
+
+.game-card.highlight-game {
+  animation: highlightPulse 2s ease-out;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.4);
+}
+
+@keyframes highlightPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.7);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 20px 5px rgba(212, 175, 55, 0.4);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.4);
+  }
 }
 
 .card-header {

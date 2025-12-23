@@ -9,10 +9,14 @@
       <!-- Game Header -->
       <div class="game-header glass-card">
         <div class="team-section home">
-          <div class="team-logo-placeholder">{{ game.home_team[0] }}</div>
+          <div class="team-logo">
+            <img v-if="game.home_logo_url" :src="game.home_logo_url" alt="logo" @error="handleLogoError">
+            <span v-else class="logo-placeholder">{{ game.home_team[0] }}</span>
+          </div>
           <span class="team-name">{{ game.home_team }}</span>
-          <span class="score">{{ game.home_score !== null ? game.home_score : '-' }}</span>
         </div>
+        
+        <span class="score home-score">{{ game.home_score !== null ? game.home_score : '-' }}</span>
         
         <div class="game-info">
           <div class="status-badge" :class="game.status === '已结束' ? 'finished' : 'upcoming'">
@@ -22,10 +26,14 @@
           <div class="venue">{{ game.venue }}</div>
         </div>
         
+        <span class="score away-score">{{ game.away_score !== null ? game.away_score : '-' }}</span>
+        
         <div class="team-section away">
-          <span class="score">{{ game.away_score !== null ? game.away_score : '-' }}</span>
           <span class="team-name">{{ game.away_team }}</span>
-          <div class="team-logo-placeholder">{{ game.away_team[0] }}</div>
+          <div class="team-logo">
+            <img v-if="game.away_logo_url" :src="game.away_logo_url" alt="logo" @error="handleLogoError">
+            <span v-else class="logo-placeholder">{{ game.away_team[0] }}</span>
+          </div>
         </div>
       </div>
 
@@ -116,16 +124,16 @@
       <!-- Tabs -->
       <div class="tabs-container">
         <button 
-          :class="['tab-btn', { active: activeTab === 'stats' }]" 
-          @click="activeTab = 'stats'"
-        >
-          数据统计
-        </button>
-        <button 
           :class="['tab-btn', { active: activeTab === 'ratings' }]" 
           @click="activeTab = 'ratings'"
         >
           评分
+        </button>
+        <button 
+          :class="['tab-btn', { active: activeTab === 'stats' }]" 
+          @click="activeTab = 'stats'"
+        >
+          数据统计
         </button>
       </div>
 
@@ -304,7 +312,7 @@ export default {
     return {
       game: null,
       loading: true,
-      activeTab: 'stats',
+      activeTab: 'ratings',
       ratings: [],
       currentUser: null,
       claiming: false
@@ -417,6 +425,9 @@ export default {
     },
     handleImageError(e) {
       e.target.src = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
+    },
+    handleLogoError(e) {
+      e.target.style.display = 'none'
     }
   }
 }
@@ -433,40 +444,67 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--spacing-xl);
-  margin-bottom: var(--spacing-xl);
+  padding: var(--spacing-md) var(--spacing-xl);
+  margin-bottom: var(--spacing-lg);
+  gap: var(--spacing-md);
 }
 
 .team-section {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-md);
   flex: 1;
 }
 
-.team-logo-placeholder {
+.team-section.home {
+  justify-content: flex-start;
+}
+
+.team-section.away {
+  justify-content: flex-end;
+}
+
+.team-logo {
   width: 80px;
   height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.team-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.logo-placeholder {
+  width: 50px;
+  height: 50px;
   background: rgba(255,255,255,0.1);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2rem;
+  font-size: 1.2rem;
   font-weight: bold;
   color: var(--accent-color);
 }
 
 .team-name {
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   font-weight: bold;
+  white-space: nowrap;
 }
 
 .score {
   font-size: 2.5rem;
   font-weight: 800;
   color: var(--accent-color);
+  min-width: 60px;
+  text-align: center;
 }
 
 .game-info {
@@ -475,6 +513,8 @@ export default {
   align-items: center;
   gap: var(--spacing-xs);
   color: var(--text-secondary);
+  flex-shrink: 0;
+  min-width: 120px;
 }
 
 .status-badge {

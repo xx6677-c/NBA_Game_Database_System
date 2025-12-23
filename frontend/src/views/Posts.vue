@@ -72,44 +72,49 @@
 
     <div class="posts-list">
       <div v-for="post in posts" :key="post.post_id" class="glass-card post-card">
-        <div class="post-header">
-          <div class="title-row">
-            <h3>{{ post.title }}</h3>
-            <button v-if="canDeletePost(post)" @click.stop="deletePost(post)" class="delete-post-btn" title="删除帖子">
-              <el-icon><Delete /></el-icon>
-            </button>
+        <div class="post-card-layout">
+          <!-- 左侧内容区 -->
+          <div class="post-left">
+            <div class="post-header">
+              <div class="title-row">
+                <h3>{{ post.title }}</h3>
+                <button v-if="canDeletePost(post)" @click.stop="deletePost(post)" class="delete-post-btn" title="删除帖子">
+                  <el-icon><Delete /></el-icon>
+                </button>
+              </div>
+              <div class="post-meta">
+                <span class="meta-item">
+                  <el-icon><User /></el-icon> {{ post.username }}
+                </span>
+                <span class="meta-item">
+                  <el-icon><Timer /></el-icon> {{ post.create_time }}
+                </span>
+              </div>
+            </div>
+            
+            <div v-if="post.season" class="post-game-info glass-card inner-card">
+              <el-icon><Trophy /></el-icon>
+              <span><strong>关联比赛:</strong> {{ post.season }} - {{ post.home_team }} vs {{ post.away_team }}</span>
+            </div>
+            
+            <div class="post-stats">
+              <span class="stat-item"><el-icon><View /></el-icon> {{ post.view_count || 0 }} 浏览</span>
+              <span class="stat-item"><el-icon><Star /></el-icon> {{ post.like_count || 0 }} 点赞</span>
+            </div>
           </div>
-          <div class="post-meta">
-            <span class="meta-item">
-              <el-icon><User /></el-icon> {{ post.username }}
-            </span>
-            <span class="meta-item">
-              <el-icon><Timer /></el-icon> {{ post.create_time }}
-            </span>
-          </div>
-        </div>
-        
-        <div class="post-content">
-          <!-- Content hidden in list view -->
-          <!-- <p>{{ post.content }}</p> -->
           
-          <!-- Show only 1st image in list view -->
-          <div v-if="post.images && post.images.length > 0" class="post-image-container">
-             <img :src="post.images[0]" alt="Post Image" class="post-image">
+          <!-- 右侧图片区 -->
+          <div class="post-right">
+            <div v-if="post.images && post.images.length > 0" class="post-image-container">
+              <img :src="post.images[0]" alt="Post Image" class="post-image">
+            </div>
+            <div v-else-if="post.image_url" class="post-image-container">
+              <img :src="post.image_url" alt="Post Image" class="post-image">
+            </div>
+            <div v-else class="post-image-placeholder">
+              <el-icon><Picture /></el-icon>
+            </div>
           </div>
-          <div v-else-if="post.image_url" class="post-image-container">
-            <img :src="post.image_url" alt="Post Image" class="post-image">
-          </div>
-        </div>
-        
-        <div v-if="post.season" class="post-game-info glass-card inner-card">
-          <el-icon><Trophy /></el-icon>
-          <span><strong>关联比赛:</strong> {{ post.season }} - {{ post.home_team }} vs {{ post.away_team }}</span>
-        </div>
-        
-        <div class="post-stats">
-          <span class="stat-item"><el-icon><View /></el-icon> {{ post.view_count || 0 }} 浏览</span>
-          <span class="stat-item"><el-icon><Star /></el-icon> {{ post.like_count || 0 }} 点赞</span>
         </div>
         
         <div class="post-actions">
@@ -237,14 +242,14 @@
 import api from '../services/api'
 import { 
   EditPen, ChatDotRound, View, Star, StarFilled, User, Timer, 
-  Trophy, Close, Delete, Loading 
+  Trophy, Close, Delete, Loading, Picture 
 } from '@element-plus/icons-vue'
 
 export default {
   name: 'Posts',
   components: {
     EditPen, ChatDotRound, View, Star, StarFilled, User, Timer, 
-    Trophy, Close, Delete, Loading
+    Trophy, Close, Delete, Loading, Picture
   },
   data() {
     return {
@@ -289,7 +294,8 @@ export default {
     async loadRecentGames() {
       try {
         const games = await api.getGames()
-        this.recentGames = games.slice(0, 10) // 最近10场比赛
+        // 只加载已结束的比赛供选择
+        this.recentGames = games.filter(game => game.status === '已结束')
       } catch (error) {
         console.error('加载比赛数据失败:', error)
       }
@@ -626,8 +632,53 @@ export default {
   box-shadow: var(--glass-shadow-hover);
 }
 
-.post-header {
+.post-card-layout {
+  display: flex;
+  gap: var(--spacing-lg);
   margin-bottom: var(--spacing-md);
+}
+
+.post-left {
+  flex: 0 0 60%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.post-right {
+  flex: 0 0 38%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.post-image-container {
+  width: 100%;
+  height: 180px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.post-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.post-image-placeholder {
+  width: 100%;
+  height: 120px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 2rem;
+}
+
+.post-header {
+  margin-bottom: var(--spacing-xs);
 }
 
 .title-row {
@@ -676,28 +727,21 @@ export default {
   gap: 6px;
 }
 
-.post-content {
-  margin-bottom: var(--spacing-md);
-  color: var(--text-primary);
-  line-height: 1.6;
-}
-
 .post-game-info {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
-  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-xs) var(--spacing-sm);
   color: var(--text-secondary);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
 }
 
 .post-stats {
   display: flex;
-  gap: var(--spacing-lg);
-  margin-bottom: var(--spacing-md);
+  gap: var(--spacing-md);
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  margin-top: auto;
 }
 
 .stat-item {

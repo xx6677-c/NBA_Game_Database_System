@@ -884,7 +884,53 @@ DELIMITER ;
 
 ---
 
-## 3.6 触发器汇总表
+## 3.6 比赛删除关联数据清理触发器
+
+### 3.6.1 触发器信息
+
+**触发器名称：** `trg_game_delete_cleanup`
+
+**触发时机：** `BEFORE DELETE ON Game`
+
+**触发条件：** 删除比赛记录
+
+### 3.6.2 功能说明
+
+- 删除比赛时，自动清理该比赛的所有关联数据
+- 删除球队-比赛关联记录（Team_Game）
+- 删除球员-比赛数据统计（Player_Game）
+- 删除比赛评分和竞猜记录
+
+### 3.6.3 关键设计
+
+- **BEFORE触发**：在删除比赛记录前先清理关联数据，避免外键约束冲突
+- **级联清理**：按照外键依赖顺序逐一清理各关联表
+- **解决外键约束**：Team_Game 和 Player_Game 表的外键未设置 CASCADE，通过触发器手动删除
+- **数据完整性**：确保删除比赛后不留孤儿数据
+
+### 3.6.4 SQL代码
+
+```sql
+DELIMITER //
+CREATE TRIGGER trg_game_delete_cleanup
+BEFORE DELETE ON Game
+FOR EACH ROW
+BEGIN
+    -- 删除比赛相关的球队-比赛关联数据
+    DELETE FROM Team_Game WHERE game_id = OLD.game_id;
+    -- 删除比赛相关的球员-比赛数据
+    DELETE FROM Player_Game WHERE game_id = OLD.game_id;
+    -- 删除比赛相关的评分
+    DELETE FROM Rating WHERE game_id = OLD.game_id;
+    -- 删除比赛相关的竞猜
+    DELETE FROM Prediction WHERE game_id = OLD.game_id;
+END//
+DELIMITER ;
+```
+
+---
+
+## 3.7 触发器汇总表
 
 | 序号 | 触发器名称 | 触发表 | 触发时机 | 功能描述 |
 | :--: | :-------- | :----: | :------: | :------- |
@@ -893,6 +939,7 @@ DELIMITER ;
 | 3 | trg_post_like_increment | Post_Like | AFTER INSERT | 点赞时自动增加帖子点赞计数 |
 | 4 | trg_post_like_decrement | Post_Like | AFTER DELETE | 取消点赞时自动减少帖子点赞计数 |
 | 5 | trg_user_delete_cleanup | User | BEFORE DELETE | 删除用户前清理所有关联数据 |
+| 6 | trg_game_delete_cleanup | Game | BEFORE DELETE | 删除比赛前清理所有关联数据 |
 
 ---
 

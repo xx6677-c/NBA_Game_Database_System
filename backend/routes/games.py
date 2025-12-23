@@ -174,6 +174,15 @@ def get_game_detail(game_id):
                 'venue': game[11],
                 'winner_team_id': game[12]
             }
+            
+            # 获取球队logo
+            cursor.execute("""
+                SELECT team_id, image_id FROM Team_Logo WHERE team_id IN (%s, %s)
+            """, (game_data['home_team_id'], game_data['away_team_id']))
+            logos = cursor.fetchall()
+            logo_map = {row[0]: row[1] for row in logos}
+            game_data['home_logo_url'] = f"/api/images/{logo_map[game_data['home_team_id']]}" if game_data['home_team_id'] in logo_map else None
+            game_data['away_logo_url'] = f"/api/images/{logo_map[game_data['away_team_id']]}" if game_data['away_team_id'] in logo_map else None
 
             # 获取竞猜数据
             # 1. 统计双方支持数
@@ -360,6 +369,11 @@ def get_player_game_detail(game_id, player_id):
                 'team_name': stats_row[12],
                 'team_id': stats_row[13]
             }
+            
+            # 获取球员头像
+            cursor.execute("SELECT image_id FROM Player_Image WHERE player_id = %s", (player_id,))
+            photo_row = cursor.fetchone()
+            stats['photo_url'] = f'/api/images/{photo_row[0]}' if photo_row else None
             
             # 2. 获取评分信息
             cursor.callproc('sp_get_player_rating_summary', (game_id, player_id))

@@ -391,6 +391,23 @@ BEGIN
 END//
 DELIMITER ;
 
+-- 4. 比赛删除时清理关联数据
+DELIMITER //
+CREATE TRIGGER trg_game_delete_cleanup
+BEFORE DELETE ON Game
+FOR EACH ROW
+BEGIN
+    -- 删除比赛相关的球队-比赛关联数据
+    DELETE FROM Team_Game WHERE game_id = OLD.game_id;
+    -- 删除比赛相关的球员-比赛数据
+    DELETE FROM Player_Game WHERE game_id = OLD.game_id;
+    -- 删除比赛相关的评分
+    DELETE FROM Rating WHERE game_id = OLD.game_id;
+    -- 删除比赛相关的竞猜
+    DELETE FROM Prediction WHERE game_id = OLD.game_id;
+END//
+DELIMITER ;
+
 
 -- ==========================================
 -- 6. 存储过程定义 (Merged from all_procedures.sql)
