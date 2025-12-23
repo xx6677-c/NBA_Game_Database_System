@@ -432,7 +432,7 @@ export default {
 .players-grid {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: 8px;
 }
 
 .player-card {

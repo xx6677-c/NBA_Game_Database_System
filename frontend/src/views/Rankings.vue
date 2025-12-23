@@ -35,7 +35,13 @@
                 <td class="rank-cell">
                   <span :class="['rank-badge', getRankClass(team.rank)]">{{ team.rank }}</span>
                 </td>
-                <td class="team-cell">{{ team.name }}</td>
+                <td class="team-cell">
+                  <div class="team-info">
+                    <img v-if="team.logo_url" :src="team.logo_url" class="team-logo-sm" alt="Team Logo" @error="handleImageError" />
+                    <div v-else class="team-logo-placeholder-sm">{{ team.name ? team.name[0] : '?' }}</div>
+                    <span class="team-name">{{ team.name }}</span>
+                  </div>
+                </td>
                 <td>{{ team.wins }}</td>
                 <td>{{ team.losses }}</td>
                 <td class="win-rate">{{ team.win_rate }}%</td>
@@ -69,7 +75,13 @@
                 <td class="rank-cell">
                   <span :class="['rank-badge', getRankClass(team.rank)]">{{ team.rank }}</span>
                 </td>
-                <td class="team-cell">{{ team.name }}</td>
+                <td class="team-cell">
+                  <div class="team-info">
+                    <img v-if="team.logo_url" :src="team.logo_url" class="team-logo-sm" alt="Team Logo" @error="handleImageError" />
+                    <div v-else class="team-logo-placeholder-sm">{{ team.name ? team.name[0] : '?' }}</div>
+                    <span class="team-name">{{ team.name }}</span>
+                  </div>
+                </td>
                 <td>{{ team.wins }}</td>
                 <td>{{ team.losses }}</td>
                 <td class="win-rate">{{ team.win_rate }}%</td>
@@ -117,7 +129,13 @@
               <td class="rank-cell">
                 <span :class="['rank-badge', getRankClass(player.rank)]">{{ player.rank }}</span>
               </td>
-              <td class="player-name">{{ player.name }}</td>
+              <td class="player-cell">
+                <div class="player-info">
+                  <img v-if="player.photo_url" :src="player.photo_url" class="player-avatar-sm" alt="Player Photo" @error="handleImageError" />
+                  <div v-else class="player-avatar-placeholder-sm">{{ player.name ? player.name[0] : '?' }}</div>
+                  <span class="player-name">{{ player.name }}</span>
+                </div>
+              </td>
               <td>{{ player.team_name }}</td>
               <td>{{ player.position }}</td>
               <td>{{ player.games_played }}</td>
@@ -218,6 +236,9 @@ export default {
       }
       const val = player[map[this.currentStat]]
       return val !== undefined && val !== null ? val : 0
+    },
+    handleImageError(e) {
+      e.target.style.display = 'none'
     }
   }
 }
@@ -361,6 +382,73 @@ export default {
   font-weight: 500;
 }
 
+.team-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.team-logo-sm {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.team-logo-placeholder-sm {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.team-name {
+  font-weight: 500;
+}
+
+.player-cell {
+  font-weight: 500;
+}
+
+.player-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.player-avatar-sm {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.player-avatar-placeholder-sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.player-name {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
 .win-rate {
   font-family: monospace;
   color: var(--color-accent);
@@ -387,11 +475,6 @@ export default {
 
 .player-rankings-card {
   padding: 0;
-}
-
-.player-name {
-  font-weight: 600;
-  color: var(--color-text-primary);
 }
 
 .stat-value {

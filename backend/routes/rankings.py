@@ -19,6 +19,12 @@ def get_team_standings():
     
     try:
         with conn.cursor() as cursor:
+            # 先获取球队logo映射 (从Team_Logo表)
+            cursor.execute("""
+                SELECT team_id, image_id FROM Team_Logo
+            """)
+            logo_map = {row[0]: row[1] for row in cursor.fetchall()}
+            
             # 查询每支球队的胜负场次
             cursor.callproc('sp_get_team_standings', (None,))
             
@@ -30,16 +36,19 @@ def get_team_standings():
                 wins = row[4] or 0
                 losses = row[5] or 0
                 win_rate = round(wins / games_played * 100, 1) if games_played > 0 else 0
+                team_id = row[0]
+                logo_id = logo_map.get(team_id)
                 
                 team_data = {
-                    'team_id': row[0],
+                    'team_id': team_id,
                     'name': row[1],
                     'city': row[2],
                     'conference': row[3],
                     'wins': wins,
                     'losses': losses,
                     'games_played': games_played,
-                    'win_rate': win_rate
+                    'win_rate': win_rate,
+                    'logo_url': f'/api/images/{logo_id}' if logo_id else None
                 }
                 
                 if row[3] == '东部':
@@ -100,11 +109,14 @@ def get_player_stats_rankings():
             # 查询球员场均数据
             cursor.callproc('sp_get_player_rankings', (stat_field, limit))
             
-            players = []
+            players_data = []
+            player_ids = []
             for i, row in enumerate(cursor.fetchall(), 1):
-                players.append({
+                player_id = row[0]
+                player_ids.append(player_id)
+                players_data.append({
                     'rank': i,
-                    'player_id': row[0],
+                    'player_id': player_id,
                     'name': row[1],
                     'position': row[2],
                     'team_name': row[3] or '自由球员',
@@ -117,9 +129,28 @@ def get_player_stats_rankings():
                     'avg_minutes': float(row[10] or 0)
                 })
             
+            # 清空结果集
+            while cursor.nextset():
+                pass
+            
+            # 获取球员照片映射
+            if player_ids:
+                placeholders = ','.join(['%s'] * len(player_ids))
+                cursor.execute(f"""
+                    SELECT player_id, image_id FROM Player_Image WHERE player_id IN ({placeholders})
+                """, tuple(player_ids))
+                photo_map = {row[0]: row[1] for row in cursor.fetchall()}
+            else:
+                photo_map = {}
+            
+            # 添加照片URL
+            for player in players_data:
+                photo_id = photo_map.get(player['player_id'])
+                player['photo_url'] = f'/api/images/{photo_id}' if photo_id else None
+            
             return jsonify({
                 'stat_type': stat_type,
-                'players': players
+                'players': players_data
             }), 200
             
     except Exception as e:
