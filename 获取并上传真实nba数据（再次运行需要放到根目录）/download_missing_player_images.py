@@ -2,7 +2,7 @@ import requests
 import os
 import time
 import sys
-
+# 下载并保存刚刚遗失的 NBA 球员的官方头像图片
 # ================= 关键设置 =================
 # 强制将标准输出设置为 UTF-8，防止 Windows 控制台因为打印 "ć, š" 等字符报错
 sys.stdout.reconfigure(encoding='utf-8')
