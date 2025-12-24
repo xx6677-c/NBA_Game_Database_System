@@ -26,8 +26,17 @@ def execute_query():
         return jsonify({'error': 'SQL查询不能为空'}), 400
     
     # 安全检查：只允许SELECT查询
-    if not sql_query.upper().startswith('SELECT'):
+    sql_upper = sql_query.upper()
+    if not sql_upper.startswith('SELECT'):
         return jsonify({'error': '仅允许执行SELECT查询'}), 400
+    
+    # 禁止危险关键字
+    dangerous_keywords = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'TRUNCATE', 
+                          'ALTER', 'CREATE', 'GRANT', 'REVOKE', 'EXEC', 'EXECUTE',
+                          'INTO OUTFILE', 'INTO DUMPFILE', 'LOAD_FILE']
+    for keyword in dangerous_keywords:
+        if keyword in sql_upper:
+            return jsonify({'error': f'禁止使用 {keyword} 关键字'}), 400
     
     conn = db_config.get_connection()
     if not conn:

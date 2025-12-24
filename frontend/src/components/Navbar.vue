@@ -42,7 +42,7 @@
           <span>社区</span>
         </router-link>
         
-        <router-link v-if="user.role === 'analyst'" to="/query" class="nav-link">
+        <router-link v-if="user.role === 'analyst' || user.role === 'admin'" to="/query" class="nav-link">
           <el-icon><DataAnalysis /></el-icon>
           <span>分析</span>
         </router-link>

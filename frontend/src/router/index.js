@@ -108,7 +108,7 @@ router.beforeEach((to, from, next) => {
   
   if (to.meta.requiresAuth && !token) {
     next('/login')
-  } else if (to.meta.requiresAnalyst && user.role !== 'analyst') {
+  } else if (to.meta.requiresAnalyst && user.role !== 'analyst' && user.role !== 'admin') {
     next('/dashboard')
   } else {
     next()

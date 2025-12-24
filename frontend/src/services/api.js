@@ -436,7 +436,7 @@ class ApiService {
 
   // SQL查询（仅数据分析师）
   async executeQuery(sqlQuery) {
-    return this.request('/query', {
+    return this.request('/query/execute', {
       method: 'POST',
       body: JSON.stringify({ query: sqlQuery })
     })

@@ -6,23 +6,7 @@
 
 ## 1.1 体系结构
 
-本项目采用B/S三层架构，基于前后端分离的设计理念，实现了NBA比赛数据管理系统的数据层、业务逻辑层和表现层的完整结构。
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         表现层 (Presentation Layer)              │
-│                    Vue 3 + Element Plus + ECharts                │
-│         用户界面、数据可视化、交互响应、状态管理                    │
-├─────────────────────────────────────────────────────────────────┤
-│                         业务逻辑层 (Business Logic Layer)         │
-│                    Flask + Flask-JWT-Extended                    │
-│         RESTful API、身份认证、权限控制、业务处理                   │
-├─────────────────────────────────────────────────────────────────┤
-│                         数据层 (Data Layer)                       │
-│                    MySQL (TaurusDB) + PyMySQL                    │
-│         存储过程、触发器、数据存储、事务管理                        │
-└─────────────────────────────────────────────────────────────────┘
-```
+本项目采用B/S三层架构，基于前后端分离的设计理念，实现了NBA比赛数据管理系统的数据层、业务逻辑层和表现层的完整结构。![Gemini_Generated_Image_oj2bsgoj2bsgoj2b](D:\edge下载\Gemini_Generated_Image_oj2bsgoj2bsgoj2b.png)
 
 ### 1.1.1 前端架构及技术栈
 
@@ -37,7 +21,7 @@
         ├─router          # Vue Router路由配置
         ├─services        # API服务封装，处理前后端交互
         └─views           # 页面级Vue组件
-            ├─Dashboard.vue        # 仪表盘页面
+            ├─Dashboard.vue        # 首页页面
             ├─Games.vue            # 比赛列表页面
             ├─GameDetails.vue      # 比赛详情页面
             ├─Players.vue          # 球员列表页面
@@ -62,7 +46,7 @@
 
 ### 1.1.2 后端架构及技术栈
 
-后端基于 Flask 框架构建，采用轻量化、模块化的设计思想，便于快速开发与灵活扩展。系统以 Python 3.9+ 为开发语言，采用蓝图（Blueprint）机制组织路由层，通过存储过程实现数据访问层的封装，工具层（utils）封装通用功能。认证与安全方面使用 Flask-JWT-Extended 实现基于 JWT 的身份验证，bcrypt 进行密码加密，Flask-CORS 支持跨域访问；底层数据库选用 MySQL，保证数据的可靠性与一致性。后端框架及技术栈如下：
+后端基于 Flask 框架构建，采用轻量化、模块化的设计思想，便于快速开发与灵活扩展。系统以 Python 3.12 为开发语言，采用蓝图（Blueprint）机制组织路由层，通过存储过程实现数据访问层的封装，工具层（utils）封装通用功能。认证与安全方面使用 Flask-JWT-Extended 实现基于 JWT 的身份验证，bcrypt 进行密码加密，Flask-CORS 支持跨域访问；底层数据库选用 MySQL，保证数据的可靠性与一致性。后端框架及技术栈如下：
 
 ```
 └─backend
@@ -74,7 +58,7 @@
     │  │  ├─init.sql      # 基础表结构初始化
     │  │  └─init_database.py  # 数据库初始化脚本
     │  ├─procedures/      # 存储过程和触发器
-    │  │  ├─total.sql     # 完整数据库脚本（表+触发器+存储过程）
+    │  │  ├─total.sql     # 完整数据库脚本（表+索引+触发器+存储过程）
     │  │  ├─all_procedures.sql  # 所有存储过程
     │  │  ├─add_triggers.sql    # 触发器定义
     │  │  └─add_indexes.sql     # 索引定义
@@ -99,17 +83,17 @@
         └─response.py     # 响应格式化
 ```
 
-|        技术         |   版本   |     职责      |
-| :-----------------: | :------: | :-----------: |
-|       Python        |   3.9+   |   编程语言    |
-|        Flask        |  2.3.3   |   Web框架     |
-| Flask-JWT-Extended  |  4.5.3   |   JWT认证     |
-|     Flask-CORS      |  4.0.0   |   跨域支持    |
-|       PyMySQL       |  1.1.0   |  数据库驱动   |
-|       bcrypt        |  4.0.1   |   密码加密    |
-|    python-dotenv    |  1.0.0   |   环境变量    |
-|      Werkzeug       |  2.3.7   |  WSGI工具库   |
-|        MySQL        |  8.0+    |  关系数据库   |
+|        技术        | 版本  |    职责    |
+| :----------------: | :---: | :--------: |
+|       Python       | 3.12  |  编程语言  |
+|       Flask        | 2.3.3 |  Web框架   |
+| Flask-JWT-Extended | 4.5.3 |  JWT认证   |
+|     Flask-CORS     | 4.0.0 |  跨域支持  |
+|      PyMySQL       | 1.1.0 | 数据库驱动 |
+|       bcrypt       | 4.0.1 |  密码加密  |
+|   python-dotenv    | 1.0.0 |  环境变量  |
+|      Werkzeug      | 2.3.7 | WSGI工具库 |
+|       MySQL        | 8.0+  | 关系数据库 |
 
 ## 1.2 系统功能模块
 

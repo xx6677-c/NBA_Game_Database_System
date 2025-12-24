@@ -42,9 +42,14 @@
       <div class="glass-card query-results" v-if="queryResult">
         <div class="results-header">
           <h3>查询结果</h3>
-          <span class="results-count">
-            共 {{ queryResult.data.length }} 条记录
-          </span>
+          <div class="results-actions">
+            <span class="results-count">
+              共 {{ queryResult.data.length }} 条记录
+            </span>
+            <button @click="downloadCSV" class="glass-btn sm-btn" :disabled="queryResult.data.length === 0">
+              <el-icon><Download /></el-icon> 下载CSV
+            </button>
+          </div>
         </div>
         
         <div class="results-table-container custom-scrollbar">
@@ -58,8 +63,8 @@
             </thead>
             <tbody>
               <tr v-for="(row, index) in queryResult.data" :key="index">
-                <td v-for="(value, colIndex) in row" :key="colIndex">
-                  {{ value }}
+                <td v-for="column in queryResult.columns" :key="column">
+                  {{ row[column] }}
                 </td>
               </tr>
             </tbody>
@@ -131,13 +136,13 @@ ORDER BY 场均得分 DESC</code></pre>
 <script>
 import api from '../services/api'
 import { 
-  DataAnalysis, DocumentCopy, Delete, VideoPlay, Close, Warning, Loading, Search 
+  DataAnalysis, DocumentCopy, Delete, VideoPlay, Close, Warning, Loading, Search, Download 
 } from '@element-plus/icons-vue'
 
 export default {
   name: 'Query',
   components: {
-    DataAnalysis, DocumentCopy, Delete, VideoPlay, Close, Warning, Loading, Search
+    DataAnalysis, DocumentCopy, Delete, VideoPlay, Close, Warning, Loading, Search, Download
   },
   data() {
     return {
@@ -176,6 +181,48 @@ export default {
     useExample(example) {
       this.sqlQuery = example
       this.showExamples = false
+    },
+    downloadCSV() {
+      if (!this.queryResult || !this.queryResult.data.length) return
+      
+      // 构建CSV内容
+      const columns = this.queryResult.columns
+      const rows = this.queryResult.data
+      
+      // 添加BOM以支持中文
+      let csvContent = '\uFEFF'
+      
+      // 添加表头
+      csvContent += columns.map(col => `"${col}"`).join(',') + '\n'
+      
+      // 添加数据行
+      rows.forEach(row => {
+        const rowData = columns.map(col => {
+          const value = row[col]
+          if (value === null || value === undefined) return ''
+          // 处理包含逗号、引号或换行的值
+          const strValue = String(value)
+          if (strValue.includes(',') || strValue.includes('"') || strValue.includes('\n')) {
+            return `"${strValue.replace(/"/g, '""')}"`
+          }
+          return strValue
+        })
+        csvContent += rowData.join(',') + '\n'
+      })
+      
+      // 创建下载链接
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      
+      link.setAttribute('href', url)
+      link.setAttribute('download', `query_result_${new Date().toISOString().slice(0, 10)}.csv`)
+      link.style.visibility = 'hidden'
+      
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
     }
   }
 }
@@ -271,6 +318,12 @@ export default {
 .results-header h3 {
   margin: 0;
   color: var(--text-primary);
+}
+
+.results-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
 }
 
 .results-count {

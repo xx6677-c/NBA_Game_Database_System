@@ -36,13 +36,13 @@ def check_admin_permission(user_id: str) -> bool:
 
 def check_analyst_permission(user_id: str) -> bool:
     """
-    验证用户是否具有数据分析师权限
+    验证用户是否具有数据分析师权限（管理员也具有此权限）
     
     Args:
         user_id: 用户ID
         
     Returns:
-        bool: 是否是数据分析师
+        bool: 是否是数据分析师或管理员
     """
     conn = db_config.get_connection()
     if not conn:
@@ -53,7 +53,7 @@ def check_analyst_permission(user_id: str) -> bool:
             cursor.execute("SELECT 角色 FROM User WHERE user_id = %s", (user_id,))
             user_data = cursor.fetchone()
             
-            if not user_data or user_data[0] != 'analyst':
+            if not user_data or user_data[0] not in ('analyst', 'admin'):
                 return False
             return True
     except Exception as e:
