@@ -678,11 +678,11 @@ DELIMITER ;
 
 ## 3.2 存储过程设计
 
-本系统共设计56个存储过程，按功能划分为8个模块。由于篇幅限制，本节仅展示各模块中具有代表性的重要存储过程（约28个），其余存储过程的完整代码见 `backend/database/procedures/all_procedures.sql`。
+本系统共设计56个存储过程，按功能划分为8个模块。
 
 #### 3.2.1 用户认证与管理存储过程
 
-本模块包含10个存储过程，用于处理用户注册、登录、个人信息管理等功能。以下展示4个核心存储过程。
+本模块包含10个存储过程，用于处理用户注册、登录、个人信息管理等功能。
 
 #### 3.2.1.1 用户注册存储过程
 
@@ -755,7 +755,40 @@ DELIMITER ;
 
 ---
 
-#### 3.2.1.3 获取用户个人信息存储过程
+#### 3.2.1.3 更新最后登录时间存储过程
+
+**存储过程名称：** `sp_update_last_login`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_user_id | INT | 用户ID |
+| p_login_time | DATETIME | 登录时间 |
+
+**输出参数：** 无
+
+**功能：** 更新用户的最后登录时间记录
+
+**关键设计：**
+- 在用户登录成功后调用，记录登录行为
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_update_last_login;
+DELIMITER //
+CREATE PROCEDURE sp_update_last_login(
+    IN p_user_id INT,
+    IN p_login_time DATETIME
+)
+BEGIN
+    UPDATE User SET 最后登录时间 = p_login_time WHERE user_id = p_user_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.1.4 获取用户个人信息存储过程
 
 **存储过程名称：** `sp_get_user_profile`
 
@@ -790,7 +823,155 @@ DELIMITER ;
 
 ---
 
-#### 3.2.1.4 删除用户账号存储过程
+#### 3.2.1.5 更新用户个人信息存储过程
+
+**存储过程名称：** `sp_update_user_profile`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_user_id | INT | 用户ID |
+| p_email | VARCHAR(100) | 邮箱地址 |
+| p_phone | VARCHAR(20) | 手机号码 |
+
+**输出参数：** 无
+
+**功能：** 更新用户的邮箱和手机号信息
+
+**关键设计：**
+- 仅允许更新邮箱和手机号，用户名和角色不可修改
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_update_user_profile;
+DELIMITER //
+CREATE PROCEDURE sp_update_user_profile(
+    IN p_user_id INT,
+    IN p_email VARCHAR(100),
+    IN p_phone VARCHAR(20)
+)
+BEGIN
+    UPDATE User SET 邮箱 = p_email, 手机号 = p_phone 
+    WHERE user_id = p_user_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.1.6 获取用户帖子列表存储过程
+
+**存储过程名称：** `sp_get_user_posts`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_user_id | INT | 用户ID |
+
+**输出参数：** 无（通过SELECT返回结果集）
+
+**返回结果：** post_id, 标题, 内容, 创建时间, 浏览量, 点赞数, 赛季, home_team, away_team
+
+**功能：** 获取指定用户发布的所有帖子列表
+
+**关键设计：**
+- 使用多表 `LEFT JOIN` 关联比赛和球队信息
+- 按创建时间倒序排列，最新帖子在前
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_get_user_posts;
+DELIMITER //
+CREATE PROCEDURE sp_get_user_posts(IN p_user_id INT)
+BEGIN
+    SELECT p.post_id, p.标题, p.内容, p.创建时间, p.浏览量, p.点赞数,
+           g.赛季, ht.名称 as home_team, at.名称 as away_team
+    FROM Post p
+    LEFT JOIN Game g ON p.game_id = g.game_id
+    LEFT JOIN Team ht ON g.主队ID = ht.team_id
+    LEFT JOIN Team at ON g.客队ID = at.team_id
+    WHERE p.user_id = p_user_id
+    ORDER BY p.创建时间 DESC;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.1.7 获取用户评分记录存储过程
+
+**存储过程名称：** `sp_get_user_ratings`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_user_id | INT | 用户ID |
+
+**输出参数：** 无（通过SELECT返回结果集）
+
+**返回结果：** user_id, player_id, game_id, 分数, 创建时间, player_name, 位置, team_name, 赛季, 日期, home_team, away_team
+
+**功能：** 获取用户对球员的所有评分记录，包含球员和比赛详情
+
+**关键设计：**
+- 多表关联查询，返回完整的评分上下文信息
+- 包含球员姓名、位置、所属球队、比赛信息等
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_get_user_ratings;
+DELIMITER //
+CREATE PROCEDURE sp_get_user_ratings(IN p_user_id INT)
+BEGIN
+    SELECT r.user_id, r.player_id, r.game_id, r.分数, r.创建时间,
+           p.姓名 as player_name, p.位置, t.名称 as team_name,
+           g.赛季, g.日期, ht.名称 as home_team, at.名称 as away_team
+    FROM Rating r
+    JOIN Player p ON r.player_id = p.player_id
+    LEFT JOIN Team t ON p.当前球队ID = t.team_id
+    JOIN Game g ON r.game_id = g.game_id
+    JOIN Team ht ON g.主队ID = ht.team_id
+    JOIN Team at ON g.客队ID = at.team_id
+    WHERE r.user_id = p_user_id
+    ORDER BY r.创建时间 DESC;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.1.8 获取用户密码哈希存储过程
+
+**存储过程名称：** `sp_get_user_password_hash`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_user_id | INT | 用户ID |
+
+**输出参数：** 无（通过SELECT返回结果集）
+
+**返回结果：** 密码
+
+**功能：** 获取用户的密码哈希值，用于密码修改时的旧密码验证
+
+**关键设计：**
+- 仅返回密码字段，用于应用层进行密码比对
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_get_user_password_hash;
+DELIMITER //
+CREATE PROCEDURE sp_get_user_password_hash(IN p_user_id INT)
+BEGIN
+    SELECT 密码 FROM User WHERE user_id = p_user_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.1.9 删除用户账号存储过程
 
 **存储过程名称：** `sp_delete_account`
 
@@ -819,9 +1000,48 @@ END//
 DELIMITER ;
 ```
 
-> **注：** 本模块其余6个存储过程（sp_update_last_login, sp_update_user_profile, sp_get_user_posts, sp_get_user_ratings, sp_get_user_password_hash, sp_get_user_points_history）功能相对简单，详见源码文件。
+---
 
-#### 3.2.1.5 用户认证模块存储过程汇总
+#### 3.2.1.10 获取用户积分历史存储过程
+
+**存储过程名称：** `sp_get_user_points_history`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_user_id | INT | 用户ID |
+
+**输出参数：** 无（通过SELECT返回结果集）
+
+**返回结果：** update_time, 主队ID, 客队ID, home_team, away_team, 主队得分, 客队得分, 日期
+
+**功能：** 获取用户已领取奖励的竞猜记录，作为积分获取历史
+
+**关键设计：**
+- 仅查询 `is_claimed = TRUE` 的记录，即已成功领取奖励的竞猜
+- 关联比赛信息，展示竞猜的上下文
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_get_user_points_history;
+DELIMITER //
+CREATE PROCEDURE sp_get_user_points_history(IN p_user_id INT)
+BEGIN
+    SELECT p.update_time, g.主队ID, g.客队ID, ht.名称 as home_team, at.名称 as away_team, 
+           g.主队得分, g.客队得分, g.日期
+    FROM Prediction p
+    JOIN Game g ON p.game_id = g.game_id
+    JOIN Team ht ON g.主队ID = ht.team_id
+    JOIN Team at ON g.客队ID = at.team_id
+    WHERE p.user_id = p_user_id AND p.is_claimed = TRUE
+    ORDER BY p.update_time DESC;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.1.11 用户认证模块存储过程汇总
 
 | 序号 | 存储过程名称 | 功能描述 | 参数类型 |
 | :--: | :---------- | :------- | :------: |
@@ -840,7 +1060,7 @@ DELIMITER ;
 
 #### 3.2.2 比赛管理存储过程
 
-本模块包含14个存储过程，用于处理比赛的查询、创建、更新、删除以及竞猜功能。以下展示6个核心存储过程。
+本模块包含14个存储过程，用于处理比赛的查询、创建、更新、删除以及竞猜功能。
 
 #### 3.2.2.1 获取比赛列表存储过程
 
@@ -934,7 +1154,157 @@ DELIMITER ;
 
 ---
 
-#### 3.2.2.3 领取竞猜奖励存储过程
+#### 3.2.2.3 获取比赛竞猜统计存储过程
+
+**存储过程名称：** `sp_get_game_prediction_stats`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_game_id | INT | 比赛ID |
+
+**输出参数：** 无（通过SELECT返回结果集）
+
+**返回结果：** predicted_team_id, COUNT(*)
+
+**功能：** 统计某场比赛各球队的竞猜票数
+
+**关键设计：**
+- 使用 `GROUP BY` 按预测球队分组统计
+- 返回各队获得的投票数量
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_get_game_prediction_stats;
+DELIMITER //
+CREATE PROCEDURE sp_get_game_prediction_stats(IN p_game_id INT)
+BEGIN
+    SELECT predicted_team_id, COUNT(*) 
+    FROM Prediction 
+    WHERE game_id = p_game_id 
+    GROUP BY predicted_team_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.2.4 获取用户竞猜记录存储过程
+
+**存储过程名称：** `sp_get_user_prediction`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_game_id | INT | 比赛ID |
+| p_user_id | INT | 用户ID |
+
+**输出参数：** 无（通过SELECT返回结果集）
+
+**返回结果：** predicted_team_id, is_claimed
+
+**功能：** 查询用户对某场比赛的竞猜记录
+
+**关键设计：**
+- 联合主键查询，精确定位用户的竞猜记录
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_get_user_prediction;
+DELIMITER //
+CREATE PROCEDURE sp_get_user_prediction(
+    IN p_game_id INT,
+    IN p_user_id INT
+)
+BEGIN
+    SELECT predicted_team_id, is_claimed
+    FROM Prediction 
+    WHERE game_id = p_game_id AND user_id = p_user_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.2.5 获取比赛球员数据存储过程
+
+**存储过程名称：** `sp_get_game_player_stats`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_game_id | INT | 比赛ID |
+
+**输出参数：** 无（通过SELECT返回结果集）
+
+**返回结果：** player_id, 上场时间, 得分, 篮板, 助攻, 抢断, 盖帽, 失误, 犯规, 正负值, 姓名, 位置, 球衣号, team_name, team_id
+
+**功能：** 获取某场比赛中所有球员的详细数据统计
+
+**关键设计：**
+- 关联Player表获取球员基本信息
+- 按球队和球衣号排序，便于前端按队伍分组展示
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_get_game_player_stats;
+DELIMITER //
+CREATE PROCEDURE sp_get_game_player_stats(IN p_game_id INT)
+BEGIN
+    SELECT pg.player_id, pg.上场时间, pg.得分, pg.篮板, pg.助攻, 
+           pg.抢断, pg.盖帽, pg.失误, pg.犯规, pg.正负值,
+           p.姓名, p.位置, p.球衣号, t.名称 as team_name, t.team_id
+    FROM Player_Game pg
+    JOIN Player p ON pg.player_id = p.player_id
+    JOIN Team t ON p.当前球队ID = t.team_id
+    WHERE pg.game_id = p_game_id
+    ORDER BY t.名称, p.球衣号;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.2.6 检查竞猜状态存储过程
+
+**存储过程名称：** `sp_check_prediction_status`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_game_id | INT | 比赛ID |
+| p_user_id | INT | 用户ID |
+
+**输出参数：** 无（通过SELECT返回结果集）
+
+**返回结果：** 状态, 获胜球队ID, predicted_team_id, is_claimed
+
+**功能：** 检查用户竞猜的状态，用于判断是否可以领取奖励
+
+**关键设计：**
+- 关联Game表获取比赛状态和获胜方
+- 返回预测球队和领取状态，供应用层判断
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_check_prediction_status;
+DELIMITER //
+CREATE PROCEDURE sp_check_prediction_status(
+    IN p_game_id INT,
+    IN p_user_id INT
+)
+BEGIN
+    SELECT g.状态, g.获胜球队ID, p.predicted_team_id, p.is_claimed
+    FROM Prediction p
+    JOIN Game g ON p.game_id = g.game_id
+    WHERE p.game_id = p_game_id AND p.user_id = p_user_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.2.7 领取竞猜奖励存储过程
 
 **存储过程名称：** `sp_claim_reward`
 
@@ -971,7 +1341,38 @@ DELIMITER ;
 
 ---
 
-#### 3.2.2.4 用户比赛竞猜存储过程
+#### 3.2.2.8 检查比赛状态存储过程
+
+**存储过程名称：** `sp_check_game_status`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_game_id | INT | 比赛ID |
+
+**输出参数：** 无（通过SELECT返回结果集）
+
+**返回结果：** 状态, 日期
+
+**功能：** 快速查询比赛状态，用于竞猜前的校验
+
+**关键设计：**
+- 仅返回状态和日期，轻量级查询
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_check_game_status;
+DELIMITER //
+CREATE PROCEDURE sp_check_game_status(IN p_game_id INT)
+BEGIN
+    SELECT 状态, 日期 FROM Game WHERE game_id = p_game_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.2.9 用户比赛竞猜存储过程
 
 **存储过程名称：** `sp_predict_game`
 
@@ -1009,7 +1410,7 @@ DELIMITER ;
 
 ---
 
-#### 3.2.2.5 创建比赛存储过程
+#### 3.2.2.10 创建比赛存储过程
 
 **存储过程名称：** `sp_create_game`
 
@@ -1066,7 +1467,60 @@ DELIMITER ;
 
 ---
 
-#### 3.2.2.6 更新比赛信息存储过程
+#### 3.2.2.11 添加球员比赛数据存储过程
+
+**存储过程名称：** `sp_add_player_game_stat`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_player_id | INT | 球员ID |
+| p_game_id | INT | 比赛ID |
+| p_minutes | DECIMAL(4,1) | 上场时间 |
+| p_points | INT | 得分 |
+| p_rebounds | INT | 篮板 |
+| p_assists | INT | 助攻 |
+| p_steals | INT | 抢断 |
+| p_blocks | INT | 盖帽 |
+| p_turnovers | INT | 失误 |
+| p_fouls | INT | 犯规 |
+| p_plus_minus | INT | 正负值 |
+
+**输出参数：** 无
+
+**功能：** 添加球员在某场比赛中的详细数据
+
+**关键设计：**
+- 完整的11项数据统计
+- 联合主键确保同一球员同一比赛只有一条记录
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_add_player_game_stat;
+DELIMITER //
+CREATE PROCEDURE sp_add_player_game_stat(
+    IN p_player_id INT,
+    IN p_game_id INT,
+    IN p_minutes DECIMAL(4,1),
+    IN p_points INT,
+    IN p_rebounds INT,
+    IN p_assists INT,
+    IN p_steals INT,
+    IN p_blocks INT,
+    IN p_turnovers INT,
+    IN p_fouls INT,
+    IN p_plus_minus INT
+)
+BEGIN
+    INSERT INTO Player_Game (player_id, game_id, 上场时间, 得分, 篮板, 助攻, 抢断, 盖帽, 失误, 犯规, 正负值)
+    VALUES (p_player_id, p_game_id, p_minutes, p_points, p_rebounds, p_assists, p_steals, p_blocks, p_turnovers, p_fouls, p_plus_minus);
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.2.12 更新比赛信息存储过程
 
 **存储过程名称：** `sp_update_game`
 
@@ -1130,9 +1584,73 @@ END//
 DELIMITER ;
 ```
 
-> **注：** 本模块其余8个存储过程（sp_get_game_prediction_stats, sp_get_user_prediction, sp_get_game_player_stats, sp_check_prediction_status, sp_check_game_status, sp_add_player_game_stat, sp_delete_player_game_stats, sp_delete_game）功能相对简单，详见源码文件。
+---
 
-#### 3.2.2.7 比赛管理模块存储过程汇总
+#### 3.2.2.13 删除比赛球员数据存储过程
+
+**存储过程名称：** `sp_delete_player_game_stats`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_game_id | INT | 比赛ID |
+
+**输出参数：** 无
+
+**功能：** 删除某场比赛的所有球员数据
+
+**关键设计：**
+- 用于比赛数据重置或更新前的清理
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_delete_player_game_stats;
+DELIMITER //
+CREATE PROCEDURE sp_delete_player_game_stats(IN p_game_id INT)
+BEGIN
+    DELETE FROM Player_Game WHERE game_id = p_game_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.2.14 删除比赛存储过程
+
+**存储过程名称：** `sp_delete_game`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_game_id | INT | 比赛ID |
+
+**输出参数：** 无
+
+**功能：** 删除比赛及其所有关联数据
+
+**关键设计：**
+- 级联删除顺序：先删除依赖表数据，再删除主表
+- 按外键依赖顺序依次删除：Rating → Player_Game → Team_Game → Post → Comment → Game
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_delete_game;
+DELIMITER //
+CREATE PROCEDURE sp_delete_game(IN p_game_id INT)
+BEGIN
+    DELETE FROM Rating WHERE game_id = p_game_id;
+    DELETE FROM Player_Game WHERE game_id = p_game_id;
+    DELETE FROM Team_Game WHERE game_id = p_game_id;
+    DELETE FROM Post WHERE game_id = p_game_id;
+    DELETE FROM Comment WHERE game_id = p_game_id;
+    DELETE FROM Game WHERE game_id = p_game_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.2.15 比赛管理模块存储过程汇总
 
 | 序号 | 存储过程名称 | 功能描述 | 参数类型 |
 | :--: | :---------- | :------- | :------: |
@@ -1155,7 +1673,7 @@ DELIMITER ;
 
 #### 3.2.3 帖子管理存储过程
 
-本模块包含10个存储过程，用于处理帖子的发布、查询、点赞、评论等功能。以下展示5个核心存储过程。
+本模块包含10个存储过程，用于处理帖子的发布、查询、点赞、评论等功能。
 
 #### 3.2.3.1 获取帖子列表存储过程
 
@@ -1246,7 +1764,106 @@ DELIMITER ;
 
 ---
 
-#### 3.2.3.3 帖子点赞存储过程
+#### 3.2.3.3 添加帖子图片存储过程
+
+**存储过程名称：** `sp_add_post_image`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_post_id | INT | 帖子ID |
+| p_image_id | INT | 图片ID |
+
+**输出参数：** 无
+
+**功能：** 为帖子关联图片
+
+**关键设计：**
+- 在创建帖子后调用，建立帖子与图片的关联
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_add_post_image;
+DELIMITER //
+CREATE PROCEDURE sp_add_post_image(
+    IN p_post_id INT,
+    IN p_image_id INT
+)
+BEGIN
+    INSERT INTO Post_Image (post_id, image_id) VALUES (p_post_id, p_image_id);
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.3.4 增加帖子浏览量存储过程
+
+**存储过程名称：** `sp_increment_post_view`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_post_id | INT | 帖子ID |
+
+**输出参数：** 无
+
+**功能：** 帖子浏览量加1
+
+**关键设计：**
+- 每次用户查看帖子详情时调用
+- 原子操作，直接在数据库层面递增
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_increment_post_view;
+DELIMITER //
+CREATE PROCEDURE sp_increment_post_view(IN p_post_id INT)
+BEGIN
+    UPDATE Post SET 浏览量 = 浏览量 + 1 WHERE post_id = p_post_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.3.5 检查帖子点赞状态存储过程
+
+**存储过程名称：** `sp_check_post_like`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_user_id | INT | 用户ID |
+| p_post_id | INT | 帖子ID |
+
+**输出参数：** 无（通过SELECT返回结果集）
+
+**返回结果：** COUNT(*)
+
+**功能：** 检查用户是否已对帖子点赞
+
+**关键设计：**
+- 返回0表示未点赞，返回1表示已点赞
+- 用于前端显示点赞状态
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_check_post_like;
+DELIMITER //
+CREATE PROCEDURE sp_check_post_like(
+    IN p_user_id INT,
+    IN p_post_id INT
+)
+BEGIN
+    SELECT COUNT(*) FROM Post_Like WHERE user_id = p_user_id AND post_id = p_post_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.3.6 帖子点赞存储过程
 
 **存储过程名称：** `sp_add_post_like`
 
@@ -1280,7 +1897,40 @@ DELIMITER ;
 
 ---
 
-#### 3.2.3.4 获取帖子评论列表存储过程
+#### 3.2.3.7 取消帖子点赞存储过程
+
+**存储过程名称：** `sp_remove_post_like`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_user_id | INT | 用户ID |
+| p_post_id | INT | 帖子ID |
+
+**输出参数：** 无
+
+**功能：** 用户取消对帖子的点赞
+
+**关键设计：**
+- 删除点赞记录后，触发器 `trg_post_like_decrement` 会自动更新帖子点赞数
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_remove_post_like;
+DELIMITER //
+CREATE PROCEDURE sp_remove_post_like(
+    IN p_user_id INT,
+    IN p_post_id INT
+)
+BEGIN
+    DELETE FROM Post_Like WHERE user_id = p_user_id AND post_id = p_post_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.3.8 获取帖子评论列表存储过程
 
 **存储过程名称：** `sp_get_post_comments`
 
@@ -1316,7 +1966,42 @@ DELIMITER ;
 
 ---
 
-#### 3.2.3.5 删除帖子存储过程
+#### 3.2.3.9 创建帖子评论存储过程
+
+**存储过程名称：** `sp_create_post_comment`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_user_id | INT | 评论用户ID |
+| p_post_id | INT | 帖子ID |
+| p_content | TEXT | 评论内容 |
+| p_created_at | DATETIME | 创建时间 |
+
+**输出参数：** 无
+
+**功能：** 创建帖子评论
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_create_post_comment;
+DELIMITER //
+CREATE PROCEDURE sp_create_post_comment(
+    IN p_user_id INT,
+    IN p_post_id INT,
+    IN p_content TEXT,
+    IN p_created_at DATETIME
+)
+BEGIN
+    INSERT INTO Comment (user_id, post_id, 内容, 创建时间)
+    VALUES (p_user_id, p_post_id, p_content, p_created_at);
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.3.10 删除帖子存储过程
 
 **存储过程名称：** `sp_delete_post`
 
@@ -1353,9 +2038,9 @@ END//
 DELIMITER ;
 ```
 
-> **注：** 本模块其余5个存储过程（sp_add_post_image, sp_increment_post_view, sp_check_post_like, sp_remove_post_like, sp_create_post_comment）功能相对简单，详见源码文件。
+---
 
-#### 3.2.3.6 帖子管理模块存储过程汇总
+#### 3.2.3.11 帖子管理模块存储过程汇总
 
 | 序号 | 存储过程名称 | 功能描述 | 参数类型 |
 | :--: | :---------- | :------- | :------: |
@@ -1374,9 +2059,41 @@ DELIMITER ;
 
 #### 3.2.4 评论管理存储过程
 
-本模块包含3个存储过程，用于处理评论的点赞功能。以下展示1个核心存储过程。
+本模块包含3个存储过程，用于处理评论的点赞功能。
 
-#### 3.2.4.1 评论点赞存储过程
+#### 3.2.4.1 检查评论点赞状态存储过程
+
+**存储过程名称：** `sp_check_comment_like`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_user_id | INT | 用户ID |
+| p_comment_id | INT | 评论ID |
+
+**输出参数：** 无（通过SELECT返回结果集）
+
+**返回结果：** COUNT(*)
+
+**功能：** 检查用户是否已对评论点赞
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_check_comment_like;
+DELIMITER //
+CREATE PROCEDURE sp_check_comment_like(
+    IN p_user_id INT,
+    IN p_comment_id INT
+)
+BEGIN
+    SELECT COUNT(*) FROM Comment_Like WHERE user_id = p_user_id AND comment_id = p_comment_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.4.2 评论点赞存储过程
 
 **存储过程名称：** `sp_add_comment_like`
 
@@ -1409,9 +2126,40 @@ END//
 DELIMITER ;
 ```
 
-> **注：** 本模块其余2个存储过程（sp_check_comment_like, sp_remove_comment_like）结构类似，详见源码文件。
+---
 
-#### 3.2.4.2 评论管理模块存储过程汇总
+#### 3.2.4.3 取消评论点赞存储过程
+
+**存储过程名称：** `sp_remove_comment_like`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_user_id | INT | 用户ID |
+| p_comment_id | INT | 评论ID |
+
+**输出参数：** 无
+
+**功能：** 用户取消对评论的点赞，同时更新评论点赞数
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_remove_comment_like;
+DELIMITER //
+CREATE PROCEDURE sp_remove_comment_like(
+    IN p_user_id INT,
+    IN p_comment_id INT
+)
+BEGIN
+    DELETE FROM Comment_Like WHERE user_id = p_user_id AND comment_id = p_comment_id;
+    UPDATE Comment SET 点赞数 = 点赞数 - 1 WHERE comment_id = p_comment_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.4.4 评论管理模块存储过程汇总
 
 | 序号 | 存储过程名称 | 功能描述 | 参数类型 |
 | :--: | :---------- | :------- | :------: |
@@ -1423,7 +2171,7 @@ DELIMITER ;
 
 #### 3.2.5 球员管理存储过程
 
-本模块包含7个存储过程，用于处理球员信息的增删改查及数据统计。以下展示4个核心存储过程。
+本模块包含7个存储过程，用于处理球员信息的增删改查及数据统计。
 
 #### 3.2.5.1 获取球员列表存储过程
 
@@ -1520,7 +2268,137 @@ DELIMITER ;
 
 ---
 
-#### 3.2.5.3 获取球员职业生涯数据存储过程
+#### 3.2.5.3 获取球员详情存储过程
+
+**存储过程名称：** `sp_get_player_detail`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_player_id | INT | 球员ID |
+
+**输出参数：** 无（通过SELECT返回结果集）
+
+**返回结果：** player_id, 姓名, 位置, 球衣号, 身高, 体重, 出生日期, 国籍, 当前球队ID, team_name, 合同到期, 薪资, image_id
+
+**功能：** 获取单个球员的详细信息
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_get_player_detail;
+DELIMITER //
+CREATE PROCEDURE sp_get_player_detail(IN p_player_id INT)
+BEGIN
+    SELECT p.player_id, p.姓名, p.位置, p.球衣号, p.身高, p.体重, 
+           p.出生日期, p.国籍, p.当前球队ID, t.名称 as team_name,
+           p.合同到期, p.薪资, pi.image_id
+    FROM Player p 
+    LEFT JOIN Team t ON p.当前球队ID = t.team_id
+    LEFT JOIN Player_Image pi ON p.player_id = pi.player_id
+    WHERE p.player_id = p_player_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.5.4 更新球员信息存储过程
+
+**存储过程名称：** `sp_update_player`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_player_id | INT | 球员ID |
+| p_name | VARCHAR(50) | 球员姓名（可选） |
+| p_position | VARCHAR(20) | 球员位置（可选） |
+| p_jersey_number | INT | 球衣号（可选） |
+| p_height | DECIMAL(3,2) | 身高（可选） |
+| p_weight | DECIMAL(4,1) | 体重（可选） |
+| p_birth_date | DATE | 出生日期（可选） |
+| p_nationality | VARCHAR(50) | 国籍（可选） |
+| p_current_team_id | INT | 当前球队ID（可选） |
+| p_contract_expiry | DATE | 合同到期日期（可选） |
+| p_salary | DECIMAL(12,2) | 年薪（可选） |
+
+**输出参数：** 无
+
+**功能：** 更新球员信息，支持部分字段更新
+
+**关键设计：**
+- 使用 `COALESCE` 函数实现可选更新，NULL值表示不更新该字段
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_update_player;
+DELIMITER //
+CREATE PROCEDURE sp_update_player(
+    IN p_player_id INT,
+    IN p_name VARCHAR(50),
+    IN p_position VARCHAR(20),
+    IN p_jersey_number INT,
+    IN p_height DECIMAL(3,2),
+    IN p_weight DECIMAL(4,1),
+    IN p_birth_date DATE,
+    IN p_nationality VARCHAR(50),
+    IN p_current_team_id INT,
+    IN p_contract_expiry DATE,
+    IN p_salary DECIMAL(12,2)
+)
+BEGIN
+    UPDATE Player 
+    SET 姓名 = COALESCE(p_name, 姓名),
+        位置 = COALESCE(p_position, 位置),
+        球衣号 = COALESCE(p_jersey_number, 球衣号),
+        身高 = COALESCE(p_height, 身高),
+        体重 = COALESCE(p_weight, 体重),
+        出生日期 = COALESCE(p_birth_date, 出生日期),
+        国籍 = COALESCE(p_nationality, 国籍),
+        当前球队ID = COALESCE(p_current_team_id, 当前球队ID),
+        合同到期 = COALESCE(p_contract_expiry, 合同到期),
+        薪资 = COALESCE(p_salary, 薪资)
+    WHERE player_id = p_player_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.5.5 删除球员存储过程
+
+**存储过程名称：** `sp_delete_player`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_player_id | INT | 球员ID |
+
+**输出参数：** 无
+
+**功能：** 删除球员及其所有关联数据
+
+**关键设计：**
+- 级联删除顺序：Player_Image → Player_Game → Rating → Comment → Player
+- 按外键依赖顺序删除
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_delete_player;
+DELIMITER //
+CREATE PROCEDURE sp_delete_player(IN p_player_id INT)
+BEGIN
+    DELETE FROM Player_Image WHERE player_id = p_player_id;
+    DELETE FROM Player_Game WHERE player_id = p_player_id;
+    DELETE FROM Rating WHERE player_id = p_player_id;
+    DELETE FROM Comment WHERE player_id = p_player_id;
+    DELETE FROM Player WHERE player_id = p_player_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.5.6 获取球员职业生涯数据存储过程
 
 **存储过程名称：** `sp_get_player_career_stats`
 
@@ -1564,7 +2442,7 @@ DELIMITER ;
 
 ---
 
-#### 3.2.5.4 获取球员近期比赛数据存储过程
+#### 3.2.5.7 获取球员近期比赛数据存储过程
 
 **存储过程名称：** `sp_get_player_recent_games`
 
@@ -1604,9 +2482,9 @@ END//
 DELIMITER ;
 ```
 
-> **注：** 本模块其余3个存储过程（sp_get_player_detail, sp_update_player, sp_delete_player）为标准CRUD操作，详见源码文件。
+---
 
-#### 3.2.5.5 球员管理模块存储过程汇总
+#### 3.2.5.8 球员管理模块存储过程汇总
 
 | 序号 | 存储过程名称 | 功能描述 | 参数类型 |
 | :--: | :---------- | :------- | :------: |
@@ -1622,7 +2500,7 @@ DELIMITER ;
 
 #### 3.2.6 球队管理存储过程
 
-本模块包含5个存储过程，用于处理球队信息的增删改查。以下展示3个核心存储过程。
+本模块包含5个存储过程，用于处理球队信息的增删改查。
 
 #### 3.2.6.1 获取所有球队存储过程
 
@@ -1698,7 +2576,54 @@ DELIMITER ;
 
 ---
 
-#### 3.2.6.3 删除球队存储过程
+#### 3.2.6.3 更新球队信息存储过程
+
+**存储过程名称：** `sp_update_team`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_team_id | INT | 球队ID |
+| p_name | VARCHAR(50) | 球队名称（可选） |
+| p_city | VARCHAR(50) | 所在城市（可选） |
+| p_arena | VARCHAR(100) | 主场场馆（可选） |
+| p_conference | VARCHAR(20) | 分区（可选） |
+| p_founded_year | INT | 成立年份（可选） |
+
+**输出参数：** 无
+
+**功能：** 更新球队信息，支持部分字段更新
+
+**关键设计：**
+- 使用 `COALESCE` 函数实现可选更新
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_update_team;
+DELIMITER //
+CREATE PROCEDURE sp_update_team(
+    IN p_team_id INT,
+    IN p_name VARCHAR(50),
+    IN p_city VARCHAR(50),
+    IN p_arena VARCHAR(100),
+    IN p_conference VARCHAR(20),
+    IN p_founded_year INT
+)
+BEGIN
+    UPDATE Team 
+    SET 名称 = COALESCE(p_name, 名称),
+        城市 = COALESCE(p_city, 城市),
+        场馆 = COALESCE(p_arena, 场馆),
+        分区 = COALESCE(p_conference, 分区),
+        成立年份 = COALESCE(p_founded_year, 成立年份)
+    WHERE team_id = p_team_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.6.4 删除球队存储过程
 
 **存储过程名称：** `sp_delete_team`
 
@@ -1724,15 +2649,48 @@ CREATE PROCEDURE sp_delete_team(IN p_team_id INT)
 BEGIN
     DELETE FROM Team_Logo WHERE team_id = p_team_id;
     DELETE FROM Team_Game WHERE team_id = p_team_id;
+    -- 注意：删除球队可能需要处理球员关联，这里假设球员关联设置为NULL或级联删除
+    -- 如果有外键约束，可能需要先更新球员
     UPDATE Player SET 当前球队ID = NULL WHERE 当前球队ID = p_team_id;
     DELETE FROM Team WHERE team_id = p_team_id;
 END//
 DELIMITER ;
 ```
 
-> **注：** 本模块其余2个存储过程（sp_update_team, sp_get_team_detail）为标准CRUD操作，详见源码文件。
+---
 
-#### 3.2.6.4 球队管理模块存储过程汇总
+#### 3.2.6.5 获取球队详情存储过程
+
+**存储过程名称：** `sp_get_team_detail`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_team_id | INT | 球队ID |
+
+**输出参数：** 无（通过SELECT返回结果集）
+
+**返回结果：** team_id, 名称, 城市, 场馆, 分区, 成立年份, image_id
+
+**功能：** 获取单个球队的详细信息
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_get_team_detail;
+DELIMITER //
+CREATE PROCEDURE sp_get_team_detail(IN p_team_id INT)
+BEGIN
+    SELECT t.team_id, t.名称, t.城市, t.场馆, t.分区, t.成立年份, tl.image_id
+    FROM Team t
+    LEFT JOIN Team_Logo tl ON t.team_id = tl.team_id
+    WHERE t.team_id = p_team_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.6.6 球队管理模块存储过程汇总
 
 | 序号 | 存储过程名称 | 功能描述 | 参数类型 |
 | :--: | :---------- | :------- | :------: |
@@ -1938,7 +2896,7 @@ DELIMITER ;
 
 #### 3.2.8 图片与商店存储过程
 
-本模块包含5个存储过程，用于处理图片管理和球星卡商店功能。以下展示3个核心存储过程。
+本模块包含5个存储过程，用于处理图片管理和球星卡商店功能。
 
 #### 3.2.8.1 上传图片存储过程
 
@@ -1982,7 +2940,73 @@ DELIMITER ;
 
 ---
 
-#### 3.2.8.2 抽取球星卡存储过程
+#### 3.2.8.2 获取图片存储过程
+
+**存储过程名称：** `sp_get_image`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_image_id | INT | 图片ID |
+
+**输出参数：** 无（通过SELECT返回结果集）
+
+**返回结果：** image_id, image_data, image_type, file_name, upload_time
+
+**功能：** 根据ID获取图片数据
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_get_image;
+DELIMITER //
+CREATE PROCEDURE sp_get_image(IN p_image_id INT)
+BEGIN
+    SELECT image_id, image_data, image_type, file_name, upload_time
+    FROM Image 
+    WHERE image_id = p_image_id;
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.8.3 更新用户头像存储过程
+
+**存储过程名称：** `sp_update_user_avatar`
+
+**输入参数：**
+| 参数名 | 类型 | 说明 |
+| :---- | :--- | :--- |
+| p_user_id | INT | 用户ID |
+| p_image_id | INT | 图片ID |
+
+**输出参数：** 无
+
+**功能：** 更新用户头像，使用插入或更新策略
+
+**关键设计：**
+- 使用 `INSERT ... ON DUPLICATE KEY UPDATE` 实现插入或更新
+- 自动记录更新时间
+
+**SQL代码：**
+```sql
+DROP PROCEDURE IF EXISTS sp_update_user_avatar;
+DELIMITER //
+CREATE PROCEDURE sp_update_user_avatar(
+    IN p_user_id INT,
+    IN p_image_id INT
+)
+BEGIN
+    INSERT INTO User_Avatar (user_id, image_id, updated_at)
+    VALUES (p_user_id, p_image_id, NOW())
+    ON DUPLICATE KEY UPDATE image_id = p_image_id, updated_at = NOW();
+END//
+DELIMITER ;
+```
+
+---
+
+#### 3.2.8.4 抽取球星卡存储过程
 
 **存储过程名称：** `sp_draw_card`
 
@@ -2054,7 +3078,7 @@ DELIMITER ;
 
 ---
 
-#### 3.2.8.3 获取我的球星卡存储过程
+#### 3.2.8.5 获取我的球星卡存储过程
 
 **存储过程名称：** `sp_get_my_cards`
 
@@ -2098,9 +3122,9 @@ END//
 DELIMITER ;
 ```
 
-> **注：** 本模块其余2个存储过程（sp_get_image, sp_update_user_avatar）功能相对简单，详见源码文件。
+---
 
-#### 3.2.8.4 图片与商店模块存储过程汇总
+#### 3.2.8.6 图片与商店模块存储过程汇总
 
 | 序号 | 存储过程名称 | 功能描述 | 参数类型 |
 | :--: | :---------- | :------- | :------: |
@@ -3698,24 +4722,6 @@ EXPLAIN SELECT * FROM Post_Like WHERE post_id = 31;
 | 按球队查球员 | idx_player_team | 17 | ✅ 高效 |
 | 按用户查竞猜 | unique_user_game | 2 | ✅ 高效 |
 | 按帖子查点赞 | idx_post_like_post | 1 | ✅ 高效 |
-| 按日期查比赛 | idx_game_date | 460 | ⚠️ 全表扫描 |
-
-**说明**：日期范围查询未能有效利用索引（MySQL优化器判断全表扫描更优），但对于当前数据量（460条比赛记录）影响不大。
-
-### 4.9.3 触发器清单
-
-系统共定义6个触发器，确保数据自动化处理：
-
-| 触发器名称 | 触发时机 | 作用表 | 功能 |
-|-----------|---------|--------|------|
-| trg_game_insert_winner | BEFORE INSERT | Game | 自动计算获胜球队 |
-| trg_game_update_winner | BEFORE UPDATE | Game | 更新时重算获胜球队 |
-| trg_game_delete_cleanup | BEFORE DELETE | Game | 删除比赛前清理关联数据 |
-| trg_post_like_increment | AFTER INSERT | Post_Like | 点赞后自动+1计数 |
-| trg_post_like_decrement | AFTER DELETE | Post_Like | 取消点赞自动-1计数 |
-| trg_user_delete_cleanup | BEFORE DELETE | User | 删除用户前清理关联数据 |
-
----
 
 # 五、总结
 
@@ -3772,7 +4778,6 @@ EXPLAIN SELECT * FROM Post_Like WHERE post_id = 31;
 
 1. **存储过程优先**：复杂业务逻辑优先使用存储过程实现
 2. **参数化查询**：防止SQL注入攻击
-3. **分页设计**：列表查询必须支持分页
 
 ## 5.3 改进方向
 
@@ -3786,26 +4791,30 @@ EXPLAIN SELECT * FROM Post_Like WHERE post_id = 31;
 
 ## 5.4 组员大作业总结
 
-### 23373105 刘锦涛：系统功能设计与前端页面设计
+### 23373105 刘锦涛：系统功能设计、前端功能实现与前端页面设计
 
-本人在本次NBA数据管理系统项目中主要负责系统功能设计与前端页面开发两大核心任务。在系统功能设计方面，我参与了需求分析，确定系统功能模块划分，设计用户交互流程和页面跳转逻辑，制定前后端接口规范和数据交互格式，并设计了包含普通用户、管理员、数据分析师的用户权限体系。在前端页面开发方面，我基于Vue 3框架搭建前端项目架构，使用Element Plus组件库开发了12个核心页面，实现了响应式布局以适配不同屏幕尺寸，使用ECharts实现数据可视化图表，并封装API服务模块对接后端RESTful接口。
+本人在本次NBA数据管理系统项目中主要负责系统功能设计与前端页面开发。在系统功能设计方面，我参与了需求分析，确定系统功能模块划分，设计用户交互流程和页面跳转逻辑，制定前后端接口规范和数据交互格式，并设计了包含普通用户、管理员、数据分析师的用户权限体系。在前端页面开发方面，我与组员共同承担页面设计与实现工作，基于Vue 3框架搭建前端项目架构，使用Element Plus组件库开发核心页面，使用ECharts实现数据可视化图表，并封装API服务模块对接后端RESTful接口。
 
-开发过程中遇到了若干技术难点。在组件化设计方面，如何合理拆分组件实现高复用性是一个挑战，最终采用"容器组件+展示组件"模式，将业务逻辑与UI展示分离，抽取Navbar、PlayerCard等通用组件。在状态管理方面，多页面间数据共享和同步问题通过使用Vue 3的Composition API配合provide/inject实现轻量级状态管理得以解决，登录状态通过JWT存储在localStorage。在数据可视化方面，深入学习ECharts配置项，实现雷达图、柱状图等多种图表，封装chart组件支持数据动态更新。在权限控制方面，通过路由守卫配合v-if指令实现前端权限控制，管理功能仅对admin角色可见。
+开发过程中遇到了若干技术难点。在组件化设计方面，如何合理拆分组件实现高复用性是一个挑战，最终采用"容器组件+展示组件"模式，将业务逻辑与UI展示分离，抽取Navbar等通用组件。在状态管理方面，多页面间数据共享和同步问题通过使用Vue 3的Composition API配合provide/inject实现轻量级状态管理得以解决，登录状态通过JWT存储在localStorage。在数据可视化方面，学习了ECharts配置项，实现雷达图、线形图等多种图表，封装chart组件支持数据动态更新。在权限控制方面，通过路由守卫配合v-if指令实现前端权限控制，管理功能仅对admin角色可见。
 
-最终完成了全部12个核心页面的开发，包括登录注册页面、仪表盘首页、比赛列表详情页面、球员相关页面、球队列表页面、帖子论坛页面、排行榜页面、用户个人中心和自定义查询页面。代码遵循Vue 3最佳实践，具有良好的可维护性，适配各种型号的PC端设备，并完成与后端46个API的对接测试。
+在前端页面的协作开发中，我与组员王晨希共同完成了12个核心页面的设计与实现，包括登录注册页面、仪表盘首页、比赛列表详情页面、球员相关页面、球队列表页面、帖子论坛页面、排行榜页面、用户个人中心和自定义查询页面。双方在页面布局设计、交互逻辑实现和样式调优方面进行了充分的讨论与配合，代码遵循Vue 3最佳实践，具有良好的可维护性，适配各种型号的PC端设备，并完成与后端46个API的对接测试。
 
-与负责后端的组员配合过程中，我深刻体会到前后端协作的重要性。接口文档先行的做法大大减少了联调时的沟通成本，及时的沟通反馈使问题能够快速定位并调整，前后端分离架构使我们可以并行开发提升效率。通过本次项目，我系统性掌握了Vue 3生态，提升了前端工程化能力，学会从用户角度思考功能设计，完整经历了从需求分析到开发上线的全流程，认识到良好的分工和沟通是项目成功的关键。
+通过本次项目，我深刻体会到团队协作的重要性。在前端页面设计中，与组员的讨论碰撞出更好的设计方案；在前后端联调中，接口文档先行的做法大大减少了沟通成本。我系统性掌握了Vue 3生态，提升了前端工程化能力，学会从用户角度思考功能设计，完整经历了从需求分析到完整开发的全流程，认识到良好的分工协作和及时沟通是项目成功的关键。
 
 ---
 
-### 23373502 王晨希：数据库设计与后端代码实现
+### 23373502 王晨希：数据库设计、后端代码实现与前端页面设计
 
-本人在本次NBA数据管理系统项目中主要负责数据库设计与后端代码实现两大核心任务。在数据库设计方面，我完成了数据库需求分析和概念设计，设计并实现18张数据表，包含完整的字段定义和约束，设计5个触发器实现业务规则自动化，设计56个存储过程封装全部业务逻辑，并规划索引策略优化查询性能。在后端代码实现方面，我基于Flask框架搭建RESTful API服务，实现JWT身份认证和权限控制中间件，开发10个路由模块对接前端全部功能需求，实现数据库连接池和事务管理，并编写数据库初始化和迁移脚本。
+本人在本次NBA数据管理系统项目中主要负责数据库设计、后端代码实现，同时参与前端页面设计工作。在数据库设计方面，我完成了数据库需求分析和概念设计，设计并实现18张数据表，包含完整的字段定义和约束，设计5个触发器实现业务规则自动化，设计56个存储过程封装全部业务逻辑，并规划索引策略优化查询性能。在后端代码实现方面，我基于Flask框架搭建RESTful API服务，实现JWT身份认证和权限控制中间件，开发10个路由模块对接前端全部功能需求，实现数据库连接池和事务管理，并编写数据库初始化和迁移脚本。
 
 开发过程中遇到了若干技术难点。在表结构设计方面，如何平衡规范化与查询效率是一个挑战，最终核心表遵循第三范式减少冗余，高频查询字段如点赞数适度冗余并通过触发器维护一致性。在存储过程设计方面，将复杂逻辑拆分为多个简单存储过程，使用事务确保原子性，添加详细注释便于维护。在触发器调试方面，编写测试用例逐一验证，使用SIGNAL语句抛出自定义错误信息，避免触发器嵌套调用。在并发控制方面，使用事务配合行级锁确保积分扣除的原子性，设计幂等性接口防止重复提交。在图片存储方面，采用BLOB类型直接存储图片二进制数据，独立Image表统一管理，通过关联表实现多对多关系。
 
-最终完成了完整的数据库设计，包括18张数据表覆盖全部业务领域，5个触发器实现自动化业务规则，56个存储过程按8个功能模块组织，以及完整的外键约束和级联删除策略。后端开发完成了10个路由模块、完整的中间件体系、46个API端点和数据库工具脚本。同时输出了完整的API接口文档和数据库设计文档。
+在前端页面设计方面，我与组员刘锦涛共同承担了12个核心页面的设计与开发工作。我参与了页面布局规划、用户交互设计和界面样式调整，在比赛详情页、球员对比页、球星卡商店等页面的设计中贡献了想法并参与实现。双方通过密切协作，确保前端页面既美观易用又能完整展现后端提供的数据能力。
 
-与负责前端的组员配合过程中，我深刻体会到接口设计的重要性。遵循RESTful规范使接口语义清晰，针对日期、枚举等类型提前约定序列化格式避免联调时的格式问题，接口变更时及时更新文档并通知前端保持信息同步。通过本次项目，我从实际需求出发完整经历了数据库设计的全过程，掌握了MySQL存储过程的高级特性，系统性掌握了Flask框架及其生态，学会了从系统整体角度思考问题注重代码的可维护性、可扩展性和安全性，认识到清晰的接口定义和及时的沟通是前后端协作的基础。
+最终完成了完整的数据库设计，包括18张数据表覆盖全部业务领域，5个触发器实现自动化业务规则，56个存储过程按8个功能模块组织，以及完整的外键约束和级联删除策略。后端开发完成了10个路由模块、完整的中间件体系、46个API端点和数据库工具脚本。
+
+通过本次项目，我深刻体会到全栈开发视角的重要性。参与前端页面设计让我能够从用户体验角度思考后端接口的设计，使接口更加合理易用；与组员的紧密协作使得前后端开发无缝衔接。我从实际需求出发完整经历了数据库设计的全过程，掌握了MySQL存储过程的高级特性，系统性掌握了Flask框架及其生态，同时也积累了Vue 3前端开发经验，学会了从系统整体角度思考问题，认识到团队成员间相互配合、优势互补是项目成功的关键。
 
 ---
+
+> **注**：完整的SQL代码（包括表结构、索引、触发器和存储过程）可见于 `backend/database/procedures/total.sql` 文件。
